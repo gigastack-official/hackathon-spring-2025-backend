@@ -34,3 +34,6 @@ docker ps
 | `./gradlew clean build`  | Полная сборка                     |
 | `./gradlew test`         | Запуск тестов                     |
 | `docker compose up`      | Вручную запустить Docker-сервисы  |
+
+
+http://127.0.0.1:8080/swagger-ui/index.html

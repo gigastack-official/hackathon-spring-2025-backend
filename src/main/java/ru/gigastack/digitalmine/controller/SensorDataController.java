@@ -3,6 +3,7 @@ package ru.gigastack.digitalmine.controller;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -23,8 +24,8 @@ public class SensorDataController {
     private final SensorDataRepository sensorDataRepository;
     private final LightingService lightingService;
 
-    // Пороговое значение для загазованности (например, 50.0)
-    private static final double GAS_THRESHOLD = 50.0;
+    @Value("${sensor.gas.threshold:50.0}")
+    private double gasThreshold;
 
     public SensorDataController(SensorDataRepository sensorDataRepository, LightingService lightingService) {
         this.sensorDataRepository = sensorDataRepository;
@@ -44,16 +45,14 @@ public class SensorDataController {
         sensorDataRepository.save(sensorData);
         logger.info("Данные датчика сохранены в БД");
 
-        // Если уровень газа превышает порог, переключаем освещение в аварийный режим (красный)
-        if (sensorData.getGasLevel() > GAS_THRESHOLD) {
-            logger.warn("Уровень газа ({}) превышает порог ({}), переключаем освещение на красный", sensorData.getGasLevel(), GAS_THRESHOLD);
+        if (sensorData.getGasLevel() > gasThreshold) {
+            logger.warn("Уровень газа ({}) превышает порог ({}), переключаем освещение на красный", sensorData.getGasLevel(), gasThreshold);
             lightingService.overrideLighting("red", 100);
         }
 
         return ResponseEntity.status(HttpStatus.OK).body("Данные получены и сохранены");
     }
 
-    // Новый GET‑эндпоинт для получения последних данных (например, для страницы "gas")
     @GetMapping("/latest")
     public ResponseEntity<SensorData> getLatestSensorData() {
         Optional<SensorData> latestData = sensorDataRepository.findTopByOrderByTimestampDesc();
