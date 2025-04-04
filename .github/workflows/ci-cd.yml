@@ -20,22 +20,6 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - name: Build the project
-        run: ./gradlew clean build
-
-      - name: List build artifacts
-        run: pwd && ls
-
-
-      - name: Copy jar to server
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.PROD_HOST }}
-          username: ${{ secrets.PROD_USER }}
-          key: ${{ secrets.PROD_SSH_KEY }}
-          source: "build/libs/myapp.jar"
-          target: "/root/backend"
-
       - name: Restart application on server
         uses: appleboy/ssh-action@master
         with:
@@ -43,9 +27,9 @@ jobs:
           username: ${{ secrets.PROD_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
           script: |
-            # Останавливаем старый процесс. Убедитесь, что шаблон pkill точно подходит для вашего случая
-            pkill -f 'java -jar'
-            # Ждём, чтобы старый процесс завершился (при необходимости)
-            sleep 5
-            # Запускаем новую версию приложения
-            nohup java -jar /root/backend/myapp.jar > /dev/null 2>&1 &
+            cd /root/backend
+            git pull
+            bash /root/killport.sh 8080
+            ./gradlew bootRun &
+
+
