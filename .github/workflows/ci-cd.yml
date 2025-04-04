@@ -30,6 +30,6 @@ jobs:
             cd /root/backend
             git pull
             bash /root/killport.sh 8080
-            ./gradlew bootRun &
+            ./gradlew bootRun > /dev/null 2>&1 &
 
 
