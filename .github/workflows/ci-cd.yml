@@ -24,9 +24,7 @@ jobs:
         run: ./gradlew clean build
 
       - name: List build artifacts
-        run: 
-        - pwd
-        - ls
+        run: pwd && ls
 
 
       - name: Copy jar to server
