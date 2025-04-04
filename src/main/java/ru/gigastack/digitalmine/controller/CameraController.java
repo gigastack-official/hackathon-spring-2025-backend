@@ -9,6 +9,7 @@ import ru.gigastack.digitalmine.service.MqttClientService;
 
 @RestController
 @RequestMapping("/api/camera")
+@CrossOrigin(origins = "*")
 public class CameraController {
 
     private static final Logger logger = LoggerFactory.getLogger(CameraController.class);
@@ -22,7 +23,7 @@ public class CameraController {
     public ResponseEntity<String> controlCamera(@RequestBody CameraControlDto command) {
         logger.info("Получена команда управления камерой: {}", command);
 
-        // Пример формирования MQTT-сообщения (формат можно изменить по необходимости)
+        // Формируем строку с данными для MQTT (можно изменить формат по необходимости)
         String mqttPayload = String.format("rotate:%d,lightOn:%b,intensity:%d",
                 command.getRotationAngle(),
                 command.getLightOn(),

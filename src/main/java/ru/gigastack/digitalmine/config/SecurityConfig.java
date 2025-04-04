@@ -19,7 +19,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                // Отключаем CSRF для упрощения конфигурации (на продакшене CSRF стоит настроить правильно)
+                // Отключаем CSRF для упрощения конфигурации (на продакшене настройте CSRF должным образом)
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         // Разрешаем доступ к Swagger UI и OpenAPI документации без аутентификации
@@ -35,7 +35,7 @@ public class SecurityConfig {
     @Bean
     public InMemoryUserDetailsManager userDetailsService() {
         PasswordEncoder encoder = passwordEncoder();
-        // Создаем пользователя с ролями и зашифрованным паролем
+        // Создаем пользователя с ролью ADMIN
         UserDetails user = User.withUsername("admin")
                 .password(encoder.encode("admin"))
                 .roles("ADMIN")

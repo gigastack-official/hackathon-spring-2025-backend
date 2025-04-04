@@ -1,13 +1,17 @@
 package ru.gigastack.digitalmine.dto;
 
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 @Data
 public class CameraControlDto {
-    // Угол поворота камеры в градусах
+
+    @NotNull(message = "Угол поворота не может быть null")
     private Integer rotationAngle;
-    // Флаг: включить/выключить подсветку
+
+    @NotNull(message = "Флаг подсветки не может быть null")
     private Boolean lightOn;
-    // Интенсивность подсветки (например, от 0 до 100)
+
+    @NotNull(message = "Интенсивность подсветки не может быть null")
     private Integer lightIntensity;
 }
