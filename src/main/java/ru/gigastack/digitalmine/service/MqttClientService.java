@@ -70,6 +70,7 @@ public class MqttClientService {
 
             // Подписываемся на топик для получения данных с датчиков (расширьте список топиков при необходимости)
             client.subscribe("sensors/test");
+            client.subscribe("pizda");
             logger.info("Subscribed to MQTT topic sensors/test");
 
         } catch (MqttException e) {
