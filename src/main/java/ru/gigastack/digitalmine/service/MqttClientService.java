@@ -156,7 +156,7 @@ public class MqttClientService implements MqttCallback {
 
         // 2) Отправляем уведомление на фронт (websocket /topic/alert или /topic/updates).
         //    Но поскольку брокер MQTT и фронт может слушать в MQTT, публикуем и туда, и через WebSocket, как нужно.
-        publish(ALERT_TOPIC, "THREAT_STARTED");
+        publish(ALERT_TOPIC, "{\"status\":\"THREAT_STARTED\"}");
 
         // 3) Отправляем на lighting/control, что надо принудительно задать #FF0000
         LightingControlDto overrideDto = new LightingControlDto();
@@ -177,7 +177,8 @@ public class MqttClientService implements MqttCallback {
         lightingService.restoreUserSettings();
 
         // 2) публикация для фронта
-        publish(ALERT_TOPIC, "THREAT_ENDED");
+        publish(ALERT_TOPIC, "{\"status\":\"THREAT_ENDED\"}");
+
 
         // 3) публикация на lighting/control, что нужно вернуть прежний цвет
         //    (получим из lightingService.getCurrentSettings())

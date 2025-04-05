@@ -4,7 +4,6 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
 import java.time.LocalDateTime;
 
 @Data
@@ -24,10 +23,8 @@ public class RfidLog {
     private String action;
 
     @Column(name = "status", nullable = false)
-    private  String status;
+    private String status;  // "allowed" / "denied" / etc.
 
     @Column(name = "timestamp", nullable = false)
     private LocalDateTime timestamp;
-
-
 }

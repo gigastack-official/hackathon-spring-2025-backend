@@ -1,11 +1,16 @@
 package ru.gigastack.digitalmine.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import ru.gigastack.digitalmine.service.MqttClientService;
 import ru.gigastack.digitalmine.service.VehicleService;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/vehicle")
@@ -38,13 +43,18 @@ public class VehicleController {
             @RequestParam String direction,
             @RequestParam(defaultValue = "press") String action,
             @RequestParam(defaultValue = "low") String gear
-    ) {
+    ) throws JsonProcessingException {
         logger.info("Получена команда управления: direction={}, action={}, gear={}", direction, action, gear);
 
-        // Формируем MQTT-пэйлоад, чтобы устройство знало, что делать
-        String mqttPayload = String.format("move_%s_%s_%s", direction, action, gear);
-        mqttClientService.publish("vehicle/control", mqttPayload);
+        Map<String, String> payloadMap = new HashMap<>();
+        payloadMap.put("direction", direction);
+        payloadMap.put("action", action);
+        payloadMap.put("gear", gear);
 
+        ObjectMapper objectMapper = new ObjectMapper();
+        String mqttPayload = objectMapper.writeValueAsString(payloadMap);
+
+        mqttClientService.publish("vehicle/control", mqttPayload);
         logger.info("MQTT-команда отправлена: {}", mqttPayload);
         return ResponseEntity.ok("Команда выполнена: " + mqttPayload);
     }
@@ -61,21 +71,19 @@ public class VehicleController {
     public ResponseEntity<String> controlCameraOnVehicle(
             @RequestParam String direction,
             @RequestParam(defaultValue = "press") String action
-    ) {
+    ) throws JsonProcessingException {
         logger.info("Управление камерой: direction={}, action={}", direction, action);
 
-        String mqttPayload = String.format("camera_%s_%s", direction, action);
+        Map<String, String> payloadMap = new HashMap<>();
+        payloadMap.put("direction", direction);
+        payloadMap.put("action", action);
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        String mqttPayload = objectMapper.writeValueAsString(payloadMap);
+
         mqttClientService.publish("vehicle/control", mqttPayload);
 
+
         return ResponseEntity.ok("Камера на электромобиле: отправлена команда " + mqttPayload);
-    }
-
-
-    /**
-     * Пример получения статуса (количество штрафов и пр.).
-     */
-    @GetMapping("/status")
-    public ResponseEntity<String> getVehicleStatus() {
-        return ResponseEntity.ok("Текущий штраф: " + vehicleService.getPenaltyCount());
     }
 }

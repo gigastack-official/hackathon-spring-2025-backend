@@ -6,7 +6,5 @@ import ru.gigastack.digitalmine.model.CardUser;
 import java.util.Optional;
 
 public interface CardUserRepository extends JpaRepository<CardUser, Long> {
-
     Optional<CardUser> findByCardId(String cardId);
-
 }

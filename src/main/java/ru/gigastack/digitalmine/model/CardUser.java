@@ -14,12 +14,14 @@ public class CardUser {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // Уникальный ID карты, который будет совпадать с rfidDto.tagId
     @Column(name = "card_id", unique = true, nullable = false)
-    private String cardId; // та самая RFID-метка
+    private String cardId;
 
-    @Column(name = "full_name")
+    @Column(name = "full_name", nullable = false)
     private String fullName;
 
+    // Роль, уровень доступа и т.п.
     @Column(name = "role")
     private String role;
 }

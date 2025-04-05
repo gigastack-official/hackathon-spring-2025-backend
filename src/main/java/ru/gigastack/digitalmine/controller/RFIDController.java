@@ -22,7 +22,7 @@ public class RFIDController {
 
     private final LightingService lightingService;
     private final RfidLogRepository rfidLogRepository;
-    private final CardUserService cardUserService; // <-- сервис для поиска пользователей по карте
+    private final CardUserService cardUserService;
 
     public RFIDController(
             LightingService lightingService,
@@ -43,11 +43,11 @@ public class RFIDController {
                 ? "enter"
                 : rfidDto.getAction().toLowerCase();
 
-        // Ищем, зарегистрирована ли эта карта
+        // Проверяем, зарегистрирована ли эта карта
         boolean cardExists = cardUserService.cardExists(rfidDto.getTagId());
         String status = cardExists ? "allowed" : "denied";
 
-        // Сохраняем в таблицу rfid_log
+        // Запись в rfid_log
         RfidLog rfidLog = new RfidLog();
         rfidLog.setTagId(rfidDto.getTagId());
         rfidLog.setAction(action);
@@ -55,37 +55,49 @@ public class RFIDController {
         rfidLog.setTimestamp(LocalDateTime.now());
         rfidLogRepository.save(rfidLog);
 
-        logger.info("RFID: tagId={}, action={}, status={}", rfidDto.getTagId(), action, status);
+        // Логируем
+        logger.info("RFID Log saved. Tag={}, Action={}, Status={}", rfidDto.getTagId(), action, status);
 
-        // Автоматическое управление освещением в зависимости от действия
-        switch (action) {
-            case "exit":
-                logger.info("Освещение: Жёлтый (выход)");
-                lightingService.overrideLighting("#FFFF00", 100);
+        // Если «denied», можно не включать свет или включать красный, как угодно
+        if ("denied".equals(status)) {
+            logger.warn("Доступ отклонён для метки {}", rfidDto.getTagId());
+            // например, свет моргает красным или ничего не делаем
+            // lightingService.overrideLighting("#FF0000", 100);
+            // ...
+        } else {
+            // Если «allowed» — тогда делаем обычную логику освещения
+            switch (action) {
+                case "exit":
+                    logger.info("Освещение: Жёлтый (выход)");
+                    lightingService.overrideLighting("#FFFF00", 100);
+                    // Можно через X секунд вернуть
+                    new Thread(() -> {
+                        try {
+                            Thread.sleep(5000L);
+                            lightingService.restoreUserSettings();
+                            logger.info("Свет восстановлен после выхода");
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }).start();
+                    break;
 
-                // Пример "автоматического" восстановления через 5 секунд в отдельном потоке
-                new Thread(() -> {
-                    try {
-                        Thread.sleep(5000L);
-                        logger.info("Прошло 5 секунд после выхода, восстанавливаем настройки.");
-                        lightingService.restoreUserSettings();
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    }
-                }).start();
-
-                break;
-
-            case "enter":
-            default:
-                logger.info("Освещение: Белый (вход)");
-                lightingService.overrideLighting("#FFFFFF", 100);
-                break;
+                case "enter":
+                default:
+                    logger.info("Освещение: Белый (вход)");
+                    lightingService.overrideLighting("#FFFFFF", 100);
+                    break;
+            }
         }
 
-        return ResponseEntity.ok("RFID метка обработана: action=" + action + ", status=" + status);
+        return ResponseEntity.ok(
+                "RFID метка: " + rfidDto.getTagId() +
+                        ", action=" + action +
+                        ", status=" + status
+        );
     }
 
+    // получить все логи
     @GetMapping("/logs")
     public ResponseEntity<List<RfidLog>> getAllRfidLogs() {
         List<RfidLog> logs = rfidLogRepository.findAll();

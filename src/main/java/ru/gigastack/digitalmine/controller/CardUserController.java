@@ -12,26 +12,18 @@ import java.util.List;
 @CrossOrigin(origins = "*")
 public class CardUserController {
 
-    @Autowired
-    private CardUserService cardUserService;
+    private final CardUserService cardUserService;
 
-    /**
-     * Получение всех владельцев карт (для отображения на фронте).
-     */
+    @Autowired
+    public CardUserController(CardUserService cardUserService) {
+        this.cardUserService = cardUserService;
+    }
+
     @GetMapping
     public List<CardUser> getAllCardUsers() {
         return cardUserService.findAll();
     }
 
-    /**
-     * Создание нового владельца карты.
-     * Пример: POST /api/card-users
-     * {
-     *   "cardId": "ABC12345",
-     *   "fullName": "Ivan Petrov",
-     *   "role": "GUEST"
-     * }
-     */
     @PostMapping
     public CardUser createCardUser(@RequestBody CardUser cardUser) {
         return cardUserService.createCardUser(
