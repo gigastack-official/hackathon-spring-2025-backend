@@ -34,9 +34,11 @@ Directory Structure:
     │   │               │   ├── src/main/java/ru/gigastack/digitalmine/dto/RFIDDto.java
     │   │               │   └── src/main/java/ru/gigastack/digitalmine/dto/SensorDataDto.java
     │   │               ├── src/main/java/ru/gigastack/digitalmine/model
+    │   │               │   ├── src/main/java/ru/gigastack/digitalmine/model/RfidLog.java
     │   │               │   ├── src/main/java/ru/gigastack/digitalmine/model/SensorData.java
     │   │               │   └── src/main/java/ru/gigastack/digitalmine/model/User.java
     │   │               ├── src/main/java/ru/gigastack/digitalmine/repository
+    │   │               │   ├── src/main/java/ru/gigastack/digitalmine/repository/RfidLogRepository.java
     │   │               │   ├── src/main/java/ru/gigastack/digitalmine/repository/SensorDataRepository.java
     │   │               │   └── src/main/java/ru/gigastack/digitalmine/repository/UserRepository.java
     │   │               ├── src/main/java/ru/gigastack/digitalmine/security
@@ -669,6 +671,7 @@ Contents of src/main/java/ru/gigastack/digitalmine/dto/LightingControlDto.java:
 package ru.gigastack.digitalmine.dto;
 
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
 @Data
@@ -676,8 +679,9 @@ public class LightingControlDto {
     @NotNull(message = "Состояние включения не может быть null")
     private Boolean power;
 
-    // Цвет в формате строки (например, "white", "yellow", "red")
+    // Цвет в формате HEX. Пример: #FFFFFF, #ff0000
     @NotNull(message = "Цвет не может быть null")
+    @Pattern(regexp = "^#[0-9A-Fa-f]{6}$", message = "Цвет должен быть в формате #RRGGBB (HEX)")
     private String color;
 
     @NotNull(message = "Яркость не может быть null")
@@ -717,6 +721,23 @@ import lombok.Data;
 public class RFIDDto {
     @NotBlank(message = "ID метки не может быть пустым")
     private String tagId;
+
+    // Необязательное поле, указывающее действие, например "enter" или "exit"
+    private String action;
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/repository/RfidLogRepository.java:
+```
+package ru.gigastack.digitalmine.repository;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import ru.gigastack.digitalmine.model.RfidLog;
+
+@Repository
+public interface RfidLogRepository extends JpaRepository<RfidLog, Long> {
+    // При желании можно добавить методы поиска по tagId или другим полям
 }
 ```
 
@@ -739,13 +760,28 @@ Contents of src/main/java/ru/gigastack/digitalmine/repository/SensorDataReposito
 ```
 package ru.gigastack.digitalmine.repository;
 
-import ru.gigastack.digitalmine.model.SensorData;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
+import ru.gigastack.digitalmine.model.SensorData;
+
+import java.time.LocalDateTime;
 import java.util.Optional;
 
-@Repository
 public interface SensorDataRepository extends JpaRepository<SensorData, Long> {
+
+    // Найти все записи с сортировкой по timestamp (по убыванию)
+    Page<SensorData> findAllByOrderByTimestampDesc(Pageable pageable);
+
+    // Найти записи, у которых timestamp >= start AND timestamp <= end
+    Page<SensorData> findByTimestampBetweenOrderByTimestampDesc(LocalDateTime start, LocalDateTime end, Pageable pageable);
+
+    // Найти записи, у которых timestamp >= start
+    Page<SensorData> findByTimestampGreaterThanEqualOrderByTimestampDesc(LocalDateTime start, Pageable pageable);
+
+    // Найти записи, у которых timestamp <= end
+    Page<SensorData> findByTimestampLessThanEqualOrderByTimestampDesc(LocalDateTime end, Pageable pageable);
+
     Optional<SensorData> findTopByOrderByTimestampDesc();
 }
 ```
@@ -1071,11 +1107,16 @@ Contents of src/main/java/ru/gigastack/digitalmine/controller/ClimateController.
 package ru.gigastack.digitalmine.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import ru.gigastack.digitalmine.model.SensorData;
 import ru.gigastack.digitalmine.repository.SensorDataRepository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -1090,11 +1131,45 @@ public class ClimateController {
         this.sensorDataRepository = sensorDataRepository;
     }
 
-    // Возвращает данные для построения графиков климата (температура, влажность)
     @GetMapping("/data")
-    public ResponseEntity<List<SensorData>> getClimateData() {
-        List<SensorData> data = sensorDataRepository.findAll();
-        return ResponseEntity.ok(data);
+    public ResponseEntity<List<SensorData>> getClimateData(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime start,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            LocalDateTime end,
+
+            @RequestParam(required = false) Integer limit
+    ) {
+        if (limit == null || limit <= 0) {
+            limit = 100; // по умолчанию вернём до 100 записей
+        }
+
+        // Создаём пагинацию и сортировку (самые свежие — первыми)
+        Pageable pageable = PageRequest.of(0, limit, Sort.by("timestamp").descending());
+
+        List<SensorData> result;
+
+        if (start == null && end == null) {
+            // Ни start, ни end нет: просто берём все
+            result = sensorDataRepository.findAllByOrderByTimestampDesc(pageable).getContent();
+
+        } else if (start != null && end != null) {
+            // Оба заданы: BETWEEN
+            result = sensorDataRepository.findByTimestampBetweenOrderByTimestampDesc(start, end, pageable).getContent();
+
+        } else if (start != null) {
+            // Только start
+            result = sensorDataRepository.findByTimestampGreaterThanEqualOrderByTimestampDesc(start, pageable).getContent();
+
+        } else {
+            // Только end
+            result = sensorDataRepository.findByTimestampLessThanEqualOrderByTimestampDesc(end, pageable).getContent();
+        }
+
+        return ResponseEntity.ok(result);
     }
 }
 ```
@@ -1231,8 +1306,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import ru.gigastack.digitalmine.service.VehicleService;
 import ru.gigastack.digitalmine.service.MqttClientService;
+import ru.gigastack.digitalmine.service.VehicleService;
 
 @RestController
 @RequestMapping("/api/vehicle")
@@ -1256,6 +1331,41 @@ public class VehicleController {
         return ResponseEntity.ok("Маршрут электромобиля запущен");
     }
 
+    /**
+     * Пример ручного управления через POST /api/vehicle/control/move?direction=forward/backward/left/right
+     * Можно передавать параметры в JSON, если удобнее.
+     */
+    @PostMapping("/control/move")
+    public ResponseEntity<String> moveVehicle(@RequestParam String direction) {
+        logger.info("Получена команда ручного управления: {}", direction);
+
+        // Можно реализовать логику во VehicleService, либо прямо тут.
+        // Для примера - просто отправляем MQTT-команду в "vehicle/control".
+        String mqttPayload;
+        switch (direction.toLowerCase()) {
+            case "forward":
+                mqttPayload = "move_forward";
+                break;
+            case "backward":
+                mqttPayload = "move_backward";
+                break;
+            case "left":
+                mqttPayload = "turn_left";
+                break;
+            case "right":
+                mqttPayload = "turn_right";
+                break;
+            default:
+                // Неверное направление
+                logger.warn("Неизвестная команда движения: {}", direction);
+                return ResponseEntity.badRequest().body("Неизвестная команда: " + direction);
+        }
+        mqttClientService.publish("vehicle/control", mqttPayload);
+
+        logger.info("MQTT-команда отправлена: {}", mqttPayload);
+        return ResponseEntity.ok("Выполнена команда: " + mqttPayload);
+    }
+
     @PostMapping("/control/penalty")
     public ResponseEntity<String> recordPenalty() {
         logger.info("Зафиксировано столкновение с конусом");
@@ -1263,7 +1373,7 @@ public class VehicleController {
         return ResponseEntity.ok("Штраф начислен. Текущий штраф: " + vehicleService.getPenaltyCount());
     }
 
-    // Новый GET‑эндпоинт для получения статуса электромобиля (например, количество штрафов)
+    // Пример получения статуса: штрафы, состояние и т.п.
     @GetMapping("/status")
     public ResponseEntity<String> getVehicleStatus() {
         return ResponseEntity.ok("Текущий штраф: " + vehicleService.getPenaltyCount());
@@ -1356,7 +1466,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import ru.gigastack.digitalmine.dto.RFIDDto;
+import ru.gigastack.digitalmine.model.RfidLog;
+import ru.gigastack.digitalmine.repository.RfidLogRepository;
 import ru.gigastack.digitalmine.service.LightingService;
+
+import java.time.LocalDateTime;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/rfid")
@@ -1364,30 +1479,54 @@ import ru.gigastack.digitalmine.service.LightingService;
 public class RFIDController {
 
     private static final Logger logger = LoggerFactory.getLogger(RFIDController.class);
-    private final LightingService lightingService;
 
-    public RFIDController(LightingService lightingService) {
+    private final LightingService lightingService;
+    private final RfidLogRepository rfidLogRepository;
+
+    public RFIDController(LightingService lightingService, RfidLogRepository rfidLogRepository) {
         this.lightingService = lightingService;
+        this.rfidLogRepository = rfidLogRepository;
     }
 
     @PostMapping("/scan")
     public ResponseEntity<String> scanRFID(@RequestBody RFIDDto rfidDto) {
         logger.info("Считана RFID метка: {}", rfidDto.getTagId());
-        // Вывод данных в монитор порта (симуляция)
-        System.out.println("RFID метка: " + rfidDto.getTagId());
 
-        // Вывод данных на веб-интерфейс — здесь просто логируем
-        logger.info("RFID данные отправлены на веб-интерфейс: {}", rfidDto.getTagId());
+        // Сохранение в таблицу rfid_log
+        RfidLog rfidLog = new RfidLog();
+        rfidLog.setTagId(rfidDto.getTagId());
+        // Если action не передали, считаем, что это "enter"
+        String action = (rfidDto.getAction() == null || rfidDto.getAction().isBlank())
+                ? "enter"
+                : rfidDto.getAction().toLowerCase();
 
-        // Автоматическое управление освещением по данным RFID:
-        // При входе человека свет должен становиться белым
-        lightingService.overrideLighting("#FFFFFF", 100);
-        logger.info("Освещение автоматически установлено в белый цвет при входе через RFID");
+        rfidLog.setAction(action);
+        rfidLog.setTimestamp(LocalDateTime.now());
+        rfidLogRepository.save(rfidLog);
 
-        // Логирование действия RFID (в дальнейшем можно сохранять в БД)
-        logger.info("Действие RFID логировано для метки: {}", rfidDto.getTagId());
+        // Логируем
+        logger.info("RFID данные отправлены на веб-интерфейс: {}, действие: {}", rfidDto.getTagId(), action);
 
-        return ResponseEntity.ok("RFID метка обработана");
+        // Автоматическое управление освещением в зависимости от действия
+        switch (action) {
+            case "exit":
+                logger.info("Освещение: ЖЁЛТЫЙ (выход)");
+                lightingService.overrideLighting("#FFFF00", 100);
+                break;
+            case "enter":
+            default:
+                logger.info("Освещение: БЕЛЫЙ (вход)");
+                lightingService.overrideLighting("#FFFFFF", 100);
+                break;
+        }
+
+        return ResponseEntity.ok("RFID метка обработана, действие: " + action);
+    }
+
+    @GetMapping("/logs")
+    public ResponseEntity<List<RfidLog>> getAllRfidLogs() {
+        List<RfidLog> logs = rfidLogRepository.findAll();
+        return ResponseEntity.ok(logs);
     }
 }
 ```
@@ -1517,6 +1656,38 @@ public class User {
 
     // Например, роли можно хранить в виде строки, разделенной запятыми
     private String roles;
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/model/RfidLog.java:
+```
+package ru.gigastack.digitalmine.model;
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Entity
+@Table(name = "rfid_log")
+public class RfidLog {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "tag_id", nullable = false)
+    private String tagId;
+
+    @Column(name = "action", nullable = false)
+    private String action;
+
+    @Column(name = "timestamp", nullable = false)
+    private LocalDateTime timestamp;
 }
 ```
 
