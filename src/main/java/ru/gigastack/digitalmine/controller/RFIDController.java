@@ -5,7 +5,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import ru.gigastack.digitalmine.dto.RFIDDto;
+import ru.gigastack.digitalmine.model.RfidLog;
+import ru.gigastack.digitalmine.repository.RfidLogRepository;
 import ru.gigastack.digitalmine.service.LightingService;
+
+import java.time.LocalDateTime;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/rfid")
@@ -13,29 +18,53 @@ import ru.gigastack.digitalmine.service.LightingService;
 public class RFIDController {
 
     private static final Logger logger = LoggerFactory.getLogger(RFIDController.class);
-    private final LightingService lightingService;
 
-    public RFIDController(LightingService lightingService) {
+    private final LightingService lightingService;
+    private final RfidLogRepository rfidLogRepository;
+
+    public RFIDController(LightingService lightingService, RfidLogRepository rfidLogRepository) {
         this.lightingService = lightingService;
+        this.rfidLogRepository = rfidLogRepository;
     }
 
     @PostMapping("/scan")
     public ResponseEntity<String> scanRFID(@RequestBody RFIDDto rfidDto) {
         logger.info("Считана RFID метка: {}", rfidDto.getTagId());
-        // Вывод данных в монитор порта (симуляция)
-        System.out.println("RFID метка: " + rfidDto.getTagId());
 
-        // Вывод данных на веб-интерфейс — здесь просто логируем
-        logger.info("RFID данные отправлены на веб-интерфейс: {}", rfidDto.getTagId());
+        // Сохранение в таблицу rfid_log
+        RfidLog rfidLog = new RfidLog();
+        rfidLog.setTagId(rfidDto.getTagId());
+        // Если action не передали, считаем, что это "enter"
+        String action = (rfidDto.getAction() == null || rfidDto.getAction().isBlank())
+                ? "enter"
+                : rfidDto.getAction().toLowerCase();
 
-        // Автоматическое управление освещением по данным RFID:
-        // При входе человека свет должен становиться белым
-        lightingService.overrideLighting("white", 100);
-        logger.info("Освещение автоматически установлено в белый цвет при входе через RFID");
+        rfidLog.setAction(action);
+        rfidLog.setTimestamp(LocalDateTime.now());
+        rfidLogRepository.save(rfidLog);
 
-        // Логирование действия RFID (в дальнейшем можно сохранять в БД)
-        logger.info("Действие RFID логировано для метки: {}", rfidDto.getTagId());
+        // Логируем
+        logger.info("RFID данные отправлены на веб-интерфейс: {}, действие: {}", rfidDto.getTagId(), action);
 
-        return ResponseEntity.ok("RFID метка обработана");
+        // Автоматическое управление освещением в зависимости от действия
+        switch (action) {
+            case "exit":
+                logger.info("Освещение: ЖЁЛТЫЙ (выход)");
+                lightingService.overrideLighting("#FFFF00", 100);
+                break;
+            case "enter":
+            default:
+                logger.info("Освещение: БЕЛЫЙ (вход)");
+                lightingService.overrideLighting("#FFFFFF", 100);
+                break;
+        }
+
+        return ResponseEntity.ok("RFID метка обработана, действие: " + action);
+    }
+
+    @GetMapping("/logs")
+    public ResponseEntity<List<RfidLog>> getAllRfidLogs() {
+        List<RfidLog> logs = rfidLogRepository.findAll();
+        return ResponseEntity.ok(logs);
     }
 }

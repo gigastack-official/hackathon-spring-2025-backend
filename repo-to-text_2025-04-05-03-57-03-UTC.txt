@@ -1,0 +1,1779 @@
+Directory: digitalmine
+
+Directory Structure:
+```
+.
+├── .gitignore
+├── README.md
+├── build.gradle
+├── compose.yaml
+│   └── gradle/wrapper
+│       ├── gradle/wrapper/gradle-wrapper.jar
+│       └── gradle/wrapper/gradle-wrapper.properties
+├── gradlew
+├── gradlew.bat
+├── settings.gradle
+    │   │           └── src/main/java/ru/gigastack/digitalmine
+    │   │               ├── src/main/java/ru/gigastack/digitalmine/DigitalmineApplication.java
+    │   │               ├── src/main/java/ru/gigastack/digitalmine/config
+    │   │               │   ├── src/main/java/ru/gigastack/digitalmine/config/OpenApiConfig.java
+    │   │               │   ├── src/main/java/ru/gigastack/digitalmine/config/SecurityConfig.java
+    │   │               │   ├── src/main/java/ru/gigastack/digitalmine/config/WebConfig.java
+    │   │               │   └── src/main/java/ru/gigastack/digitalmine/config/WebSocketConfig.java
+    │   │               ├── src/main/java/ru/gigastack/digitalmine/controller
+    │   │               │   ├── src/main/java/ru/gigastack/digitalmine/controller/AuthController.java
+    │   │               │   ├── src/main/java/ru/gigastack/digitalmine/controller/CameraController.java
+    │   │               │   ├── src/main/java/ru/gigastack/digitalmine/controller/ClimateController.java
+    │   │               │   ├── src/main/java/ru/gigastack/digitalmine/controller/LightingController.java
+    │   │               │   ├── src/main/java/ru/gigastack/digitalmine/controller/RFIDController.java
+    │   │               │   ├── src/main/java/ru/gigastack/digitalmine/controller/SensorDataController.java
+    │   │               │   └── src/main/java/ru/gigastack/digitalmine/controller/VehicleController.java
+    │   │               ├── src/main/java/ru/gigastack/digitalmine/dto
+    │   │               │   ├── src/main/java/ru/gigastack/digitalmine/dto/CameraControlDto.java
+    │   │               │   ├── src/main/java/ru/gigastack/digitalmine/dto/LightingControlDto.java
+    │   │               │   ├── src/main/java/ru/gigastack/digitalmine/dto/RFIDDto.java
+    │   │               │   └── src/main/java/ru/gigastack/digitalmine/dto/SensorDataDto.java
+    │   │               ├── src/main/java/ru/gigastack/digitalmine/model
+    │   │               │   ├── src/main/java/ru/gigastack/digitalmine/model/SensorData.java
+    │   │               │   └── src/main/java/ru/gigastack/digitalmine/model/User.java
+    │   │               ├── src/main/java/ru/gigastack/digitalmine/repository
+    │   │               │   ├── src/main/java/ru/gigastack/digitalmine/repository/SensorDataRepository.java
+    │   │               │   └── src/main/java/ru/gigastack/digitalmine/repository/UserRepository.java
+    │   │               ├── src/main/java/ru/gigastack/digitalmine/security
+    │   │               │   ├── src/main/java/ru/gigastack/digitalmine/security/CustomUserDetailsService.java
+    │   │               │   ├── src/main/java/ru/gigastack/digitalmine/security/JwtAuthenticationFilter.java
+    │   │               │   └── src/main/java/ru/gigastack/digitalmine/security/JwtTokenProvider.java
+    │   │               └── src/main/java/ru/gigastack/digitalmine/service
+    │   │                   ├── src/main/java/ru/gigastack/digitalmine/service/LightingService.java
+    │   │                   ├── src/main/java/ru/gigastack/digitalmine/service/MqttClientService.java
+    │   │                   ├── src/main/java/ru/gigastack/digitalmine/service/UserService.java
+    │   │                   └── src/main/java/ru/gigastack/digitalmine/service/VehicleService.java
+    │   └── src/main/resources
+    │       ├── src/main/resources/application.properties
+    │       ├── src/main/resources/logback-spring.xml
+                    └── src/test/java/ru/gigastack/digitalmine
+                        └── src/test/java/ru/gigastack/digitalmine/DigitalmineApplicationTests.java
+```
+
+Contents of README.md:
+```
+# DigITalMine
+
+Spring Boot приложение для цифрового управления процессами (Digital Mine Platform).
+
+## ⚙️ Установка
+
+```bash
+git clone https://github.com/gigastack-official/hackathon-spring-2025-backend
+cd digitalmine
+```
+
+## 🚀 Запуск
+
+1. Убедись, что Docker запущен:
+
+```bash
+docker ps
+```
+
+2. Запусти проект:
+
+```bash
+./gradlew bootRun
+```
+
+> Spring Boot автоматически запустит контейнеры из `compose.yaml`.
+
+
+## 💡 Полезные команды
+
+| Команда                   | Описание                          |
+|--------------------------|-----------------------------------|
+| `./gradlew bootRun`      | Запуск Spring Boot приложения     |
+| `./gradlew clean build`  | Полная сборка                     |
+| `./gradlew test`         | Запуск тестов                     |
+| `docker compose up`      | Вручную запустить Docker-сервисы  |
+
+
+http://127.0.0.1:8080/swagger-ui/index.html
+```
+
+Contents of gradlew:
+```
+#!/bin/sh
+
+#
+# Copyright © 2015-2021 the original authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+##############################################################################
+#
+#   Gradle start up script for POSIX generated by Gradle.
+#
+#   Important for running:
+#
+#   (1) You need a POSIX-compliant shell to run this script. If your /bin/sh is
+#       noncompliant, but you have some other compliant shell such as ksh or
+#       bash, then to run this script, type that shell name before the whole
+#       command line, like:
+#
+#           ksh Gradle
+#
+#       Busybox and similar reduced shells will NOT work, because this script
+#       requires all of these POSIX shell features:
+#         * functions;
+#         * expansions «$var», «${var}», «${var:-default}», «${var+SET}»,
+#           «${var#prefix}», «${var%suffix}», and «$( cmd )»;
+#         * compound commands having a testable exit status, especially «case»;
+#         * various built-in commands including «command», «set», and «ulimit».
+#
+#   Important for patching:
+#
+#   (2) This script targets any POSIX shell, so it avoids extensions provided
+#       by Bash, Ksh, etc; in particular arrays are avoided.
+#
+#       The "traditional" practice of packing multiple parameters into a
+#       space-separated string is a well documented source of bugs and security
+#       problems, so this is (mostly) avoided, by progressively accumulating
+#       options in "$@", and eventually passing that to Java.
+#
+#       Where the inherited environment variables (DEFAULT_JVM_OPTS, JAVA_OPTS,
+#       and GRADLE_OPTS) rely on word-splitting, this is performed explicitly;
+#       see the in-line comments for details.
+#
+#       There are tweaks for specific operating systems such as AIX, CygWin,
+#       Darwin, MinGW, and NonStop.
+#
+#   (3) This script is generated from the Groovy template
+#       https://github.com/gradle/gradle/blob/HEAD/platforms/jvm/plugins-application/src/main/resources/org/gradle/api/internal/plugins/unixStartScript.txt
+#       within the Gradle project.
+#
+#       You can find Gradle at https://github.com/gradle/gradle/.
+#
+##############################################################################
+
+# Attempt to set APP_HOME
+
+# Resolve links: $0 may be a link
+app_path=$0
+
+# Need this for daisy-chained symlinks.
+while
+    APP_HOME=${app_path%"${app_path##*/}"}  # leaves a trailing /; empty if no leading path
+    [ -h "$app_path" ]
+do
+    ls=$( ls -ld "$app_path" )
+    link=${ls#*' -> '}
+    case $link in             #(
+      /*)   app_path=$link ;; #(
+      *)    app_path=$APP_HOME$link ;;
+    esac
+done
+
+# This is normally unused
+# shellcheck disable=SC2034
+APP_BASE_NAME=${0##*/}
+# Discard cd standard output in case $CDPATH is set (https://github.com/gradle/gradle/issues/25036)
+APP_HOME=$( cd -P "${APP_HOME:-./}" > /dev/null && printf '%s\n' "$PWD" ) || exit
+
+# Use the maximum available, or set MAX_FD != -1 to use that value.
+MAX_FD=maximum
+
+warn () {
+    echo "$*"
+} >&2
+
+die () {
+    echo
+    echo "$*"
+    echo
+    exit 1
+} >&2
+
+# OS specific support (must be 'true' or 'false').
+cygwin=false
+msys=false
+darwin=false
+nonstop=false
+case "$( uname )" in                #(
+  CYGWIN* )         cygwin=true  ;; #(
+  Darwin* )         darwin=true  ;; #(
+  MSYS* | MINGW* )  msys=true    ;; #(
+  NONSTOP* )        nonstop=true ;;
+esac
+
+CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
+
+
+# Determine the Java command to use to start the JVM.
+if [ -n "$JAVA_HOME" ] ; then
+    if [ -x "$JAVA_HOME/jre/sh/java" ] ; then
+        # IBM's JDK on AIX uses strange locations for the executables
+        JAVACMD=$JAVA_HOME/jre/sh/java
+    else
+        JAVACMD=$JAVA_HOME/bin/java
+    fi
+    if [ ! -x "$JAVACMD" ] ; then
+        die "ERROR: JAVA_HOME is set to an invalid directory: $JAVA_HOME
+
+Please set the JAVA_HOME variable in your environment to match the
+location of your Java installation."
+    fi
+else
+    JAVACMD=java
+    if ! command -v java >/dev/null 2>&1
+    then
+        die "ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH.
+
+Please set the JAVA_HOME variable in your environment to match the
+location of your Java installation."
+    fi
+fi
+
+# Increase the maximum file descriptors if we can.
+if ! "$cygwin" && ! "$darwin" && ! "$nonstop" ; then
+    case $MAX_FD in #(
+      max*)
+        # In POSIX sh, ulimit -H is undefined. That's why the result is checked to see if it worked.
+        # shellcheck disable=SC2039,SC3045
+        MAX_FD=$( ulimit -H -n ) ||
+            warn "Could not query maximum file descriptor limit"
+    esac
+    case $MAX_FD in  #(
+      '' | soft) :;; #(
+      *)
+        # In POSIX sh, ulimit -n is undefined. That's why the result is checked to see if it worked.
+        # shellcheck disable=SC2039,SC3045
+        ulimit -n "$MAX_FD" ||
+            warn "Could not set maximum file descriptor limit to $MAX_FD"
+    esac
+fi
+
+# Collect all arguments for the java command, stacking in reverse order:
+#   * args from the command line
+#   * the main class name
+#   * -classpath
+#   * -D...appname settings
+#   * --module-path (only if needed)
+#   * DEFAULT_JVM_OPTS, JAVA_OPTS, and GRADLE_OPTS environment variables.
+
+# For Cygwin or MSYS, switch paths to Windows format before running java
+if "$cygwin" || "$msys" ; then
+    APP_HOME=$( cygpath --path --mixed "$APP_HOME" )
+    CLASSPATH=$( cygpath --path --mixed "$CLASSPATH" )
+
+    JAVACMD=$( cygpath --unix "$JAVACMD" )
+
+    # Now convert the arguments - kludge to limit ourselves to /bin/sh
+    for arg do
+        if
+            case $arg in                                #(
+              -*)   false ;;                            # don't mess with options #(
+              /?*)  t=${arg#/} t=/${t%%/*}              # looks like a POSIX filepath
+                    [ -e "$t" ] ;;                      #(
+              *)    false ;;
+            esac
+        then
+            arg=$( cygpath --path --ignore --mixed "$arg" )
+        fi
+        # Roll the args list around exactly as many times as the number of
+        # args, so each arg winds up back in the position where it started, but
+        # possibly modified.
+        #
+        # NB: a `for` loop captures its iteration list before it begins, so
+        # changing the positional parameters here affects neither the number of
+        # iterations, nor the values presented in `arg`.
+        shift                   # remove old arg
+        set -- "$@" "$arg"      # push replacement arg
+    done
+fi
+
+
+# Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
+DEFAULT_JVM_OPTS='"-Xmx64m" "-Xms64m"'
+
+# Collect all arguments for the java command:
+#   * DEFAULT_JVM_OPTS, JAVA_OPTS, and optsEnvironmentVar are not allowed to contain shell fragments,
+#     and any embedded shellness will be escaped.
+#   * For example: A user cannot expect ${Hostname} to be expanded, as it is an environment variable and will be
+#     treated as '${Hostname}' itself on the command line.
+
+set -- \
+        "-Dorg.gradle.appname=$APP_BASE_NAME" \
+        -classpath "$CLASSPATH" \
+        org.gradle.wrapper.GradleWrapperMain \
+        "$@"
+
+# Stop when "xargs" is not available.
+if ! command -v xargs >/dev/null 2>&1
+then
+    die "xargs is not available"
+fi
+
+# Use "xargs" to parse quoted args.
+#
+# With -n1 it outputs one arg per line, with the quotes and backslashes removed.
+#
+# In Bash we could simply go:
+#
+#   readarray ARGS < <( xargs -n1 <<<"$var" ) &&
+#   set -- "${ARGS[@]}" "$@"
+#
+# but POSIX shell has neither arrays nor command substitution, so instead we
+# post-process each arg (as a line of input to sed) to backslash-escape any
+# character that might be a shell metacharacter, then use eval to reverse
+# that process (while maintaining the separation between arguments), and wrap
+# the whole thing up as a single "set" statement.
+#
+# This will of course break if any of these variables contains a newline or
+# an unmatched quote.
+#
+
+eval "set -- $(
+        printf '%s\n' "$DEFAULT_JVM_OPTS $JAVA_OPTS $GRADLE_OPTS" |
+        xargs -n1 |
+        sed ' s~[^-[:alnum:]+,./:=@_]~\\&~g; ' |
+        tr '\n' ' '
+    )" '"$@"'
+
+exec "$JAVACMD" "$@"
+
+```
+
+Contents of build.gradle:
+```
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '3.4.4'
+	id 'io.spring.dependency-management' version '1.1.7'
+	id 'org.asciidoctor.jvm.convert' version '3.3.2'
+}
+
+group = 'ru.gigastack'
+version = '0.0.1-SNAPSHOT'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
+}
+
+configurations {
+	compileOnly {
+		extendsFrom annotationProcessor
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+ext {
+	set('snippetsDir', file("build/generated-snippets"))
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-websocket'
+	compileOnly 'org.projectlombok:lombok'
+	developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
+	runtimeOnly 'org.postgresql:postgresql'
+	annotationProcessor 'org.projectlombok:lombok'
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.restdocs:spring-restdocs-mockmvc'
+	testImplementation 'org.springframework.security:spring-security-test'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.1.0'
+	implementation("org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5")
+	implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
+	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
+	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
+}
+
+tasks.named('test') {
+	outputs.dir snippetsDir
+	useJUnitPlatform()
+}
+
+tasks.named('asciidoctor') {
+	inputs.dir snippetsDir
+	dependsOn test
+}
+
+```
+
+Contents of compose.yaml:
+```
+services:
+  postgres:
+    image: 'postgres:latest'
+    environment:
+      - 'POSTGRES_DB=mydatabase'
+      - 'POSTGRES_PASSWORD=secret'
+      - 'POSTGRES_USER=myuser'
+    ports:
+      - '5432'
+
+```
+
+Contents of gradlew.bat:
+```
+@rem
+@rem Copyright 2015 the original author or authors.
+@rem
+@rem Licensed under the Apache License, Version 2.0 (the "License");
+@rem you may not use this file except in compliance with the License.
+@rem You may obtain a copy of the License at
+@rem
+@rem      https://www.apache.org/licenses/LICENSE-2.0
+@rem
+@rem Unless required by applicable law or agreed to in writing, software
+@rem distributed under the License is distributed on an "AS IS" BASIS,
+@rem WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+@rem See the License for the specific language governing permissions and
+@rem limitations under the License.
+@rem
+@rem SPDX-License-Identifier: Apache-2.0
+@rem
+
+@if "%DEBUG%"=="" @echo off
+@rem ##########################################################################
+@rem
+@rem  Gradle startup script for Windows
+@rem
+@rem ##########################################################################
+
+@rem Set local scope for the variables with windows NT shell
+if "%OS%"=="Windows_NT" setlocal
+
+set DIRNAME=%~dp0
+if "%DIRNAME%"=="" set DIRNAME=.
+@rem This is normally unused
+set APP_BASE_NAME=%~n0
+set APP_HOME=%DIRNAME%
+
+@rem Resolve any "." and ".." in APP_HOME to make it shorter.
+for %%i in ("%APP_HOME%") do set APP_HOME=%%~fi
+
+@rem Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
+set DEFAULT_JVM_OPTS="-Xmx64m" "-Xms64m"
+
+@rem Find java.exe
+if defined JAVA_HOME goto findJavaFromJavaHome
+
+set JAVA_EXE=java.exe
+%JAVA_EXE% -version >NUL 2>&1
+if %ERRORLEVEL% equ 0 goto execute
+
+echo. 1>&2
+echo ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH. 1>&2
+echo. 1>&2
+echo Please set the JAVA_HOME variable in your environment to match the 1>&2
+echo location of your Java installation. 1>&2
+
+goto fail
+
+:findJavaFromJavaHome
+set JAVA_HOME=%JAVA_HOME:"=%
+set JAVA_EXE=%JAVA_HOME%/bin/java.exe
+
+if exist "%JAVA_EXE%" goto execute
+
+echo. 1>&2
+echo ERROR: JAVA_HOME is set to an invalid directory: %JAVA_HOME% 1>&2
+echo. 1>&2
+echo Please set the JAVA_HOME variable in your environment to match the 1>&2
+echo location of your Java installation. 1>&2
+
+goto fail
+
+:execute
+@rem Setup the command line
+
+set CLASSPATH=%APP_HOME%\gradle\wrapper\gradle-wrapper.jar
+
+
+@rem Execute Gradle
+"%JAVA_EXE%" %DEFAULT_JVM_OPTS% %JAVA_OPTS% %GRADLE_OPTS% "-Dorg.gradle.appname=%APP_BASE_NAME%" -classpath "%CLASSPATH%" org.gradle.wrapper.GradleWrapperMain %*
+
+:end
+@rem End local scope for the variables with windows NT shell
+if %ERRORLEVEL% equ 0 goto mainEnd
+
+:fail
+rem Set variable GRADLE_EXIT_CONSOLE if you need the _script_ return code instead of
+rem the _cmd.exe /c_ return code!
+set EXIT_CODE=%ERRORLEVEL%
+if %EXIT_CODE% equ 0 set EXIT_CODE=1
+if not ""=="%GRADLE_EXIT_CONSOLE%" exit %EXIT_CODE%
+exit /b %EXIT_CODE%
+
+:mainEnd
+if "%OS%"=="Windows_NT" endlocal
+
+:omega
+
+```
+
+Contents of settings.gradle:
+```
+rootProject.name = 'digitalmine'
+
+```
+
+Contents of gradle/wrapper/gradle-wrapper.jar:
+```
+[Could not decode file contents]
+
+```
+
+Contents of gradle/wrapper/gradle-wrapper.properties:
+```
+distributionBase=GRADLE_USER_HOME
+distributionPath=wrapper/dists
+distributionUrl=https\://services.gradle.org/distributions/gradle-8.13-bin.zip
+networkTimeout=10000
+validateDistributionUrl=true
+zipStoreBase=GRADLE_USER_HOME
+zipStorePath=wrapper/dists
+
+```
+
+Contents of src/test/java/ru/gigastack/digitalmine/DigitalmineApplicationTests.java:
+```
+package ru.gigastack.digitalmine;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+
+@SpringBootTest
+class DigitalmineApplicationTests {
+
+	//@Test
+	//void contextLoads() {
+	//}
+
+}
+
+```
+
+Contents of src/main/resources/logback-spring.xml:
+```
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- Определяем шаблон логирования -->
+    <property name="LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{36} - %msg%n"/>
+
+    <!-- Консольный аппендер -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Уровень логирования по умолчанию -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+    </root>
+
+    <!-- Логирование для пакета вашего приложения -->
+    <logger name="ru.gigastack.digitalmine" level="DEBUG"/>
+</configuration>
+```
+
+Contents of src/main/resources/application.properties:
+```
+spring.application.name=digitalmine
+spring.datasource.url=jdbc:postgresql://localhost:5432/mydatabase
+spring.datasource.username=postgres
+spring.datasource.password=
+spring.jpa.hibernate.ddl-auto=update
+jwt.secret=SuperLongSecretKeyAtLeast64Bytes12345678901234567890123456789012
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect
+
+
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/DigitalmineApplication.java:
+```
+package ru.gigastack.digitalmine;
+
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+import ru.gigastack.digitalmine.service.UserService;
+
+@SpringBootApplication
+public class DigitalmineApplication {
+	@Bean
+	public CommandLineRunner dataInitializer(UserService userService) {
+		return args -> {
+			if (userService.findByUsername("admin").isEmpty()) {
+				userService.registerUser("admin", "admin", "ADMIN");
+			}
+		};
+	}
+	public static void main(String[] args) {
+
+		SpringApplication.run(DigitalmineApplication.class, args);
+
+	}
+
+}
+
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/dto/SensorDataDto.java:
+```
+package ru.gigastack.digitalmine.dto;
+
+import jakarta.validation.constraints.NotNull;
+import lombok.Data;
+
+@Data
+public class SensorDataDto {
+
+    @NotNull(message = "Уровень газа не может быть null")
+    private Double gasLevel;
+
+    @NotNull(message = "Температура не может быть null")
+    private Double temperature;
+
+    @NotNull(message = "Влажность не может быть null")
+    private Double humidity;
+
+    // При необходимости можно добавить дополнительные поля, например, время измерения, ID датчика и т.д.
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/dto/LightingControlDto.java:
+```
+package ru.gigastack.digitalmine.dto;
+
+import jakarta.validation.constraints.NotNull;
+import lombok.Data;
+
+@Data
+public class LightingControlDto {
+    @NotNull(message = "Состояние включения не может быть null")
+    private Boolean power;
+
+    // Цвет в формате строки (например, "white", "yellow", "red")
+    @NotNull(message = "Цвет не может быть null")
+    private String color;
+
+    @NotNull(message = "Яркость не может быть null")
+    private Integer brightness;
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/dto/CameraControlDto.java:
+```
+package ru.gigastack.digitalmine.dto;
+
+import jakarta.validation.constraints.NotNull;
+import lombok.Data;
+
+@Data
+public class CameraControlDto {
+
+    @NotNull(message = "Угол поворота не может быть null")
+    private Integer rotationAngle;
+
+    @NotNull(message = "Флаг подсветки не может быть null")
+    private Boolean lightOn;
+
+    @NotNull(message = "Интенсивность подсветки не может быть null")
+    private Integer lightIntensity;
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/dto/RFIDDto.java:
+```
+package ru.gigastack.digitalmine.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import lombok.Data;
+
+@Data
+public class RFIDDto {
+    @NotBlank(message = "ID метки не может быть пустым")
+    private String tagId;
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/repository/UserRepository.java:
+```
+package ru.gigastack.digitalmine.repository;
+
+import ru.gigastack.digitalmine.model.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import java.util.Optional;
+
+@Repository
+public interface UserRepository extends JpaRepository<User, Long> {
+    Optional<User> findByUsername(String username);
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/repository/SensorDataRepository.java:
+```
+package ru.gigastack.digitalmine.repository;
+
+import ru.gigastack.digitalmine.model.SensorData;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import java.util.Optional;
+
+@Repository
+public interface SensorDataRepository extends JpaRepository<SensorData, Long> {
+    Optional<SensorData> findTopByOrderByTimestampDesc();
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/config/SecurityConfig.java:
+```
+package ru.gigastack.digitalmine.config;
+
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import ru.gigastack.digitalmine.security.JwtAuthenticationFilter;
+
+@Configuration
+public class SecurityConfig {
+
+    @Autowired
+    private UserDetailsService customUserDetailsService;
+
+    @Bean
+    public JwtAuthenticationFilter jwtAuthenticationFilter() {
+        return new JwtAuthenticationFilter();
+    }
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+                .csrf(csrf -> csrf.disable())
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((request, response, authException) ->
+                                response.sendError(HttpServletResponse.SC_UNAUTHORIZED))
+                )
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        .anyRequest().authenticated()
+                );
+        http.addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
+        return http.build();
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
+        return authConfig.getAuthenticationManager();
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/config/OpenApiConfig.java:
+```
+package ru.gigastack.digitalmine.config;
+
+import io.swagger.v3.oas.models.Components;
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.security.*;
+import io.swagger.v3.oas.models.security.SecurityScheme.In;
+import io.swagger.v3.oas.models.security.SecurityScheme.Type;
+import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
+
+import org.springdoc.core.models.GroupedOpenApi;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class OpenApiConfig {
+
+    @Bean
+    public OpenAPI customOpenAPI() {
+        return new OpenAPI()
+                .info(new Info().title("DigitalMine API").version("v1"))
+                .addSecurityItem(new SecurityRequirement().addList("bearerAuth"))
+                .components(new Components().addSecuritySchemes(
+                        "bearerAuth",
+                        new SecurityScheme()
+                                .type(SecurityScheme.Type.HTTP)
+                                .scheme("bearer")
+                                .bearerFormat("JWT")
+                ));
+    }
+
+    @Bean
+    public GroupedOpenApi publicApi() {
+        // ОБЯЗАТЕЛЬНО указываем packagesToScan
+        return GroupedOpenApi.builder()
+                .group("digitalmine-public")
+                .packagesToScan("ru.gigastack.digitalmine.controller")
+                .build();
+    }
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/config/WebConfig.java:
+```
+package ru.gigastack.digitalmine.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+@Configuration
+public class WebConfig {
+
+    @Bean
+    public WebMvcConfigurer corsConfigurer() {
+        return new WebMvcConfigurer() {
+            @Override
+            public void addCorsMappings(CorsRegistry registry) {
+                registry.addMapping("/**")
+                        .allowedOrigins("*")
+                        .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                        .allowedHeaders("*");
+            }
+        };
+    }
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/config/WebSocketConfig.java:
+```
+package ru.gigastack.digitalmine.config;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.messaging.simp.config.MessageBrokerRegistry;
+import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
+import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
+import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
+
+@Configuration
+@EnableWebSocketMessageBroker
+public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+
+    // Настройка брокера сообщений: мы используем простой in-memory брокер для сообщений,
+    // которые будут отправляться клиентам (например, на топики /topic или /queue).
+    @Override
+    public void configureMessageBroker(MessageBrokerRegistry config) {
+        config.enableSimpleBroker("/topic", "/queue");
+        // Префикс, с которого начинаются все сообщения, отправляемые с клиента на сервер.
+        config.setApplicationDestinationPrefixes("/app");
+    }
+
+    // Регистрация конечной точки, через которую клиенты будут подключаться к WebSocket.
+    @Override
+    public void registerStompEndpoints(StompEndpointRegistry registry) {
+        registry.addEndpoint("/ws")
+                // Разрешаем подключение с любых доменов (при необходимости ограничьте список)
+                .setAllowedOriginPatterns("*")
+                // Поддержка SockJS для обеспечения кроссбраузерности
+                .withSockJS();
+    }
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/security/JwtAuthenticationFilter.java:
+```
+package ru.gigastack.digitalmine.security;
+
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.util.StringUtils;
+import org.springframework.web.filter.OncePerRequestFilter;
+import java.io.IOException;
+
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    @Autowired
+    private JwtTokenProvider tokenProvider;
+
+    @Autowired
+    private UserDetailsService customUserDetailsService;
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    FilterChain filterChain)
+            throws ServletException, IOException {
+        try {
+            String jwt = getJwtFromRequest(request);
+            if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
+                String username = tokenProvider.getUsernameFromJWT(jwt);
+                UserDetails userDetails = customUserDetailsService.loadUserByUsername(username);
+                UsernamePasswordAuthenticationToken authentication =
+                        new UsernamePasswordAuthenticationToken(
+                                userDetails, null, userDetails.getAuthorities());
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            }
+        } catch (Exception ex) {
+            // Логирование ошибки аутентификации
+        }
+        filterChain.doFilter(request, response);
+    }
+
+    private String getJwtFromRequest(HttpServletRequest request) {
+        String bearerToken = request.getHeader("Authorization");
+        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
+            return bearerToken.substring(7);
+        }
+        return null;
+    }
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/security/JwtTokenProvider.java:
+```
+package ru.gigastack.digitalmine.security;
+
+import io.jsonwebtoken.*;
+import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+import java.util.Date;
+
+@Component
+public class JwtTokenProvider {
+    // лучше хранить в application.properties,
+    // например jwt.secret=GjhJKIJhuh8... (не меньше 64 байт)
+    @Value("${jwt.secret}")
+    private String jwtSecret;
+
+    @Value("${jwt.expiration:86400000}")
+    private long jwtExpirationInMs;
+
+    // Генерация JWT
+    public String generateToken(String username) {
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + jwtExpirationInMs);
+
+        return Jwts.builder()
+                .setSubject(username)
+                .setIssuedAt(now)
+                .setExpiration(expiryDate)
+                // Вместо .signWith(SignatureAlgorithm.HS512, jwtSecret)
+                // используем специальный метод:
+                .signWith(Keys.hmacShaKeyFor(jwtSecret.getBytes()), SignatureAlgorithm.HS512)
+                .compact();
+    }
+
+    // Извлечение пользователя
+    public String getUsernameFromJWT(String token) {
+        Claims claims = Jwts.parserBuilder()
+                .setSigningKey(Keys.hmacShaKeyFor(jwtSecret.getBytes()))
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+        return claims.getSubject();
+    }
+
+    // Валидация
+    public boolean validateToken(String authToken) {
+        try {
+            Jwts.parserBuilder()
+                    .setSigningKey(Keys.hmacShaKeyFor(jwtSecret.getBytes()))
+                    .build()
+                    .parseClaimsJws(authToken);
+            return true;
+        } catch (JwtException | IllegalArgumentException ex) {
+            // логирование
+        }
+        return false;
+    }
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/security/CustomUserDetailsService.java:
+```
+package ru.gigastack.digitalmine.security;
+
+import ru.gigastack.digitalmine.model.User;
+import ru.gigastack.digitalmine.repository.UserRepository;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Service;
+
+@Service
+public class CustomUserDetailsService implements UserDetailsService {
+
+    private final UserRepository userRepository;
+
+    public CustomUserDetailsService(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException("Пользователь не найден: " + username));
+        // Если поле roles содержит, например, строку "ADMIN" или "USER", используем её как authorities
+        return org.springframework.security.core.userdetails.User
+                .withUsername(user.getUsername())
+                .password(user.getPassword())
+                .authorities(user.getRoles())
+                .build();
+    }
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/controller/ClimateController.java:
+```
+package ru.gigastack.digitalmine.controller;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import ru.gigastack.digitalmine.model.SensorData;
+import ru.gigastack.digitalmine.repository.SensorDataRepository;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/climate")
+@CrossOrigin(origins = "*")
+public class ClimateController {
+
+    private final SensorDataRepository sensorDataRepository;
+
+    @Autowired
+    public ClimateController(SensorDataRepository sensorDataRepository) {
+        this.sensorDataRepository = sensorDataRepository;
+    }
+
+    // Возвращает данные для построения графиков климата (температура, влажность)
+    @GetMapping("/data")
+    public ResponseEntity<List<SensorData>> getClimateData() {
+        List<SensorData> data = sensorDataRepository.findAll();
+        return ResponseEntity.ok(data);
+    }
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/controller/LightingController.java:
+```
+package ru.gigastack.digitalmine.controller;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import ru.gigastack.digitalmine.dto.LightingControlDto;
+import ru.gigastack.digitalmine.service.LightingService;
+import ru.gigastack.digitalmine.service.MqttClientService;
+
+@RestController
+@RequestMapping("/api/lighting")
+@CrossOrigin(origins = "*")
+public class LightingController {
+
+    private static final Logger logger = LoggerFactory.getLogger(LightingController.class);
+    private final LightingService lightingService;
+    private final MqttClientService mqttClientService;
+
+    public LightingController(LightingService lightingService, MqttClientService mqttClientService) {
+        this.lightingService = lightingService;
+        this.mqttClientService = mqttClientService;
+    }
+
+    @PostMapping("/web")
+    public ResponseEntity<String> controlLightingWeb(@RequestBody LightingControlDto controlDto) {
+        logger.info("Получена команда управления освещением через веб-интерфейс: {}", controlDto);
+        lightingService.updateUserSettings(controlDto);
+        // Отправка команды на MQTT брокер
+        mqttClientService.publish("lighting/control", controlDto.toString());
+        return ResponseEntity.ok("Команда управления освещением обработана");
+    }
+
+    @PostMapping("/restore")
+    public ResponseEntity<String> restoreLightingSettings() {
+        lightingService.restoreUserSettings();
+        mqttClientService.publish("lighting/control", "restore");
+        logger.info("Пользовательские настройки освещения восстановлены");
+        return ResponseEntity.ok("Пользовательские настройки освещения восстановлены");
+    }
+
+    @PostMapping("/port")
+    public ResponseEntity<String> controlLightingPort(@RequestBody LightingControlDto controlDto) {
+        logger.info("Получена команда управления освещением через монитор порта: {}", controlDto);
+        lightingService.updateUserSettings(controlDto);
+        mqttClientService.publish("lighting/control", controlDto.toString());
+        return ResponseEntity.ok("Команда управления освещением через монитор порта обработана");
+    }
+
+    @GetMapping("/status")
+    public ResponseEntity<LightingControlDto> getLightingStatus() {
+        return ResponseEntity.ok(lightingService.getCurrentSettings());
+    }
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/controller/AuthController.java:
+```
+package ru.gigastack.digitalmine.controller;
+
+import jakarta.validation.Valid;
+import lombok.Data;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import ru.gigastack.digitalmine.model.User;
+import ru.gigastack.digitalmine.security.JwtTokenProvider;
+import ru.gigastack.digitalmine.service.UserService;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+@RestController
+@RequestMapping("/api/auth")
+@CrossOrigin(origins = "*")
+public class AuthController {
+
+    @Autowired
+    private UserService userService;
+
+    @Autowired
+    private JwtTokenProvider tokenProvider;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest registerRequest) {
+        User user = userService.registerUser(registerRequest.getUsername(), registerRequest.getPassword(), "USER");
+        return ResponseEntity.ok("Пользователь зарегистрирован: " + user.getUsername());
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest loginRequest) {
+        User user = userService.findByUsername(loginRequest.getUsername())
+                .orElseThrow(() -> new RuntimeException("Неверное имя пользователя или пароль"));
+
+        if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {
+            throw new RuntimeException("Неверное имя пользователя или пароль");
+        }
+
+        String token = tokenProvider.generateToken(user.getUsername());
+        return ResponseEntity.ok(new JwtAuthenticationResponse(token));
+    }
+
+    @Data
+    public static class RegisterRequest {
+        private String username;
+        private String password;
+    }
+
+    @Data
+    public static class LoginRequest {
+        private String username;
+        private String password;
+    }
+
+    @Data
+    public static class JwtAuthenticationResponse {
+        private final String accessToken;
+    }
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/controller/VehicleController.java:
+```
+package ru.gigastack.digitalmine.controller;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import ru.gigastack.digitalmine.service.VehicleService;
+import ru.gigastack.digitalmine.service.MqttClientService;
+
+@RestController
+@RequestMapping("/api/vehicle")
+@CrossOrigin(origins = "*")
+public class VehicleController {
+
+    private static final Logger logger = LoggerFactory.getLogger(VehicleController.class);
+    private final VehicleService vehicleService;
+    private final MqttClientService mqttClientService;
+
+    public VehicleController(VehicleService vehicleService, MqttClientService mqttClientService) {
+        this.vehicleService = vehicleService;
+        this.mqttClientService = mqttClientService;
+    }
+
+    @PostMapping("/control/start")
+    public ResponseEntity<String> startVehicleRoute() {
+        logger.info("Инициирован старт маршрута электромобиля");
+        vehicleService.startRoute();
+        mqttClientService.publish("vehicle/control", "start_route");
+        return ResponseEntity.ok("Маршрут электромобиля запущен");
+    }
+
+    @PostMapping("/control/penalty")
+    public ResponseEntity<String> recordPenalty() {
+        logger.info("Зафиксировано столкновение с конусом");
+        vehicleService.addPenalty();
+        return ResponseEntity.ok("Штраф начислен. Текущий штраф: " + vehicleService.getPenaltyCount());
+    }
+
+    // Новый GET‑эндпоинт для получения статуса электромобиля (например, количество штрафов)
+    @GetMapping("/status")
+    public ResponseEntity<String> getVehicleStatus() {
+        return ResponseEntity.ok("Текущий штраф: " + vehicleService.getPenaltyCount());
+    }
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/controller/CameraController.java:
+```
+package ru.gigastack.digitalmine.controller;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import ru.gigastack.digitalmine.dto.CameraControlDto;
+import ru.gigastack.digitalmine.service.MqttClientService;
+
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/camera")
+@CrossOrigin(origins = "*")
+public class CameraController {
+
+    private static final Logger logger = LoggerFactory.getLogger(CameraController.class);
+    private final MqttClientService mqttClientService;
+
+    public CameraController(MqttClientService mqttClientService) {
+        this.mqttClientService = mqttClientService;
+    }
+
+    @PostMapping("/control")
+    public ResponseEntity<String> controlCamera(@RequestBody CameraControlDto command) {
+        logger.info("Получена команда управления камерой: {}", command);
+
+        String mqttPayload = String.format("rotate:%d,lightOn:%b,intensity:%d",
+                command.getRotationAngle(),
+                command.getLightOn(),
+                command.getLightIntensity());
+        mqttClientService.publish("camera/control", mqttPayload);
+
+        return ResponseEntity.ok("Команда управления камерой обработана");
+    }
+
+    @GetMapping("/recognize")
+    public ResponseEntity<Map<String, Object>> recognizeObjects() {
+        // Симуляция распознавания объектов без классификации
+        List<String> objects = Arrays.asList("Деталь1", "Деталь2", "Человек");
+        Map<String, Object> response = new HashMap<>();
+        response.put("recognizedObjects", objects);
+        logger.info("Распознаны объекты (без классификации): {}", objects);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/recognize/classified")
+    public ResponseEntity<Map<String, Object>> recognizeObjectsWithClassification() {
+        // Симуляция распознавания объектов с классификацией
+        List<Map<String, Object>> objects = Arrays.asList(
+                new HashMap<String, Object>() {{
+                    put("object", "Человек");
+                    put("confidence", 0.95);
+                }},
+                new HashMap<String, Object>() {{
+                    put("object", "Грузовик");
+                    put("confidence", 0.90);
+                }},
+                new HashMap<String, Object>() {{
+                    put("object", "Оборудование");
+                    put("confidence", 0.85);
+                }}
+        );
+        Map<String, Object> response = new HashMap<>();
+        response.put("recognizedObjects", objects);
+        logger.info("Распознаны объекты с классификацией: {}", objects);
+        return ResponseEntity.ok(response);
+    }
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/controller/RFIDController.java:
+```
+package ru.gigastack.digitalmine.controller;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import ru.gigastack.digitalmine.dto.RFIDDto;
+import ru.gigastack.digitalmine.service.LightingService;
+
+@RestController
+@RequestMapping("/api/rfid")
+@CrossOrigin(origins = "*")
+public class RFIDController {
+
+    private static final Logger logger = LoggerFactory.getLogger(RFIDController.class);
+    private final LightingService lightingService;
+
+    public RFIDController(LightingService lightingService) {
+        this.lightingService = lightingService;
+    }
+
+    @PostMapping("/scan")
+    public ResponseEntity<String> scanRFID(@RequestBody RFIDDto rfidDto) {
+        logger.info("Считана RFID метка: {}", rfidDto.getTagId());
+        // Вывод данных в монитор порта (симуляция)
+        System.out.println("RFID метка: " + rfidDto.getTagId());
+
+        // Вывод данных на веб-интерфейс — здесь просто логируем
+        logger.info("RFID данные отправлены на веб-интерфейс: {}", rfidDto.getTagId());
+
+        // Автоматическое управление освещением по данным RFID:
+        // При входе человека свет должен становиться белым
+        lightingService.overrideLighting("#FFFFFF", 100);
+        logger.info("Освещение автоматически установлено в белый цвет при входе через RFID");
+
+        // Логирование действия RFID (в дальнейшем можно сохранять в БД)
+        logger.info("Действие RFID логировано для метки: {}", rfidDto.getTagId());
+
+        return ResponseEntity.ok("RFID метка обработана");
+    }
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/controller/SensorDataController.java:
+```
+package ru.gigastack.digitalmine.controller;
+
+import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import ru.gigastack.digitalmine.dto.SensorDataDto;
+import ru.gigastack.digitalmine.model.SensorData;
+import ru.gigastack.digitalmine.repository.SensorDataRepository;
+import ru.gigastack.digitalmine.service.LightingService;
+
+import java.time.LocalDateTime;
+import java.util.Optional;
+
+@RestController
+@RequestMapping("/api/sensors")
+@CrossOrigin(origins = "*")
+public class SensorDataController {
+
+    private static final Logger logger = LoggerFactory.getLogger(SensorDataController.class);
+    private final SensorDataRepository sensorDataRepository;
+    private final LightingService lightingService;
+
+    @Value("${sensor.gas.threshold:50.0}")
+    private double gasThreshold;
+
+    public SensorDataController(SensorDataRepository sensorDataRepository, LightingService lightingService) {
+        this.sensorDataRepository = sensorDataRepository;
+        this.lightingService = lightingService;
+    }
+
+    @PostMapping("/data")
+    public ResponseEntity<String> receiveSensorData(@RequestBody @Valid SensorDataDto sensorDataDto) {
+        logger.info("Получены данные датчика: {}", sensorDataDto);
+
+        SensorData sensorData = new SensorData();
+        sensorData.setGasLevel(sensorDataDto.getGasLevel());
+        sensorData.setTemperature(sensorDataDto.getTemperature());
+        sensorData.setHumidity(sensorDataDto.getHumidity());
+        sensorData.setTimestamp(LocalDateTime.now());
+
+        sensorDataRepository.save(sensorData);
+        logger.info("Данные датчика сохранены в БД");
+
+        if (sensorData.getGasLevel() > gasThreshold) {
+            logger.warn("Уровень газа ({}) превышает порог ({}), переключаем освещение на красный", sensorData.getGasLevel(), gasThreshold);
+            lightingService.overrideLighting("#FF0000", 100);
+        }
+
+        return ResponseEntity.status(HttpStatus.OK).body("Данные получены и сохранены");
+    }
+
+    @GetMapping("/latest")
+    public ResponseEntity<SensorData> getLatestSensorData() {
+        Optional<SensorData> latestData = sensorDataRepository.findTopByOrderByTimestampDesc();
+        return latestData.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.noContent().build());
+    }
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/model/SensorData.java:
+```
+package ru.gigastack.digitalmine.model;
+
+import jakarta.persistence.*;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+import java.time.LocalDateTime;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Entity
+@Table(name = "sensor_data")
+public class SensorData {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "gas_level", nullable = false)
+    private Double gasLevel;
+
+    @Column(name = "temperature", nullable = false)
+    private Double temperature;
+
+    @Column(name = "humidity", nullable = false)
+    private Double humidity;
+
+    @Column(name = "timestamp", nullable = false)
+    private LocalDateTime timestamp;
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/model/User.java:
+```
+package ru.gigastack.digitalmine.model;
+
+import jakarta.persistence.*;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@Entity
+@Table(name = "users")
+public class User {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(unique = true, nullable = false)
+    private String username;
+
+    @Column(nullable = false)
+    private String password; // Хранится в зашифрованном виде
+
+    // Например, роли можно хранить в виде строки, разделенной запятыми
+    private String roles;
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/service/UserService.java:
+```
+package ru.gigastack.digitalmine.service;
+
+import ru.gigastack.digitalmine.model.User;
+import ru.gigastack.digitalmine.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import java.util.Optional;
+
+@Service
+public class UserService {
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    @Autowired
+    public UserService(UserRepository userRepository,
+                       PasswordEncoder passwordEncoder) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+    }
+
+    public User registerUser(String username, String rawPassword, String roles) {
+        if (userRepository.findByUsername(username).isPresent()) {
+            throw new RuntimeException("Пользователь с таким именем уже существует");
+        }
+        User user = new User();
+        user.setUsername(username);
+        user.setPassword(passwordEncoder.encode(rawPassword));
+        user.setRoles(roles);
+        return userRepository.save(user);
+    }
+
+    public Optional<User> findByUsername(String username) {
+        return userRepository.findByUsername(username);
+    }
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/service/LightingService.java:
+```
+package ru.gigastack.digitalmine.service;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import ru.gigastack.digitalmine.dto.LightingControlDto;
+
+@Service
+public class LightingService {
+
+    private static final Logger logger = LoggerFactory.getLogger(LightingService.class);
+
+    // Текущие настройки, установленные пользователем
+    private LightingControlDto userSettings = new LightingControlDto();
+    // Текущие активные настройки (могут быть изменены системой для сигнализации)
+    private LightingControlDto currentSettings = new LightingControlDto();
+
+    public LightingService() {
+        // Инициализация значений по умолчанию
+        userSettings.setPower(true);
+        userSettings.setColor("white");
+        userSettings.setBrightness(100);
+
+        // Изначально активные настройки совпадают с пользовательскими
+        currentSettings.setPower(userSettings.getPower());
+        currentSettings.setColor(userSettings.getColor());
+        currentSettings.setBrightness(userSettings.getBrightness());
+    }
+
+    // Обновление настроек, установленных пользователем
+    public void updateUserSettings(LightingControlDto newSettings) {
+        logger.info("Обновление пользовательских настроек освещения: {}", newSettings);
+        userSettings.setPower(newSettings.getPower());
+        userSettings.setColor(newSettings.getColor());
+        userSettings.setBrightness(newSettings.getBrightness());
+
+        // Применяем изменения немедленно, если нет сигнализации
+        currentSettings.setPower(newSettings.getPower());
+        currentSettings.setColor(newSettings.getColor());
+        currentSettings.setBrightness(newSettings.getBrightness());
+
+        // Здесь можно добавить код для отправки команд на аппаратное обеспечение
+    }
+
+    // Автоматическое переопределение настроек при сигнализации
+    public void overrideLighting(String color, Integer brightness) {
+        logger.info("Переопределение настроек освещения на аварийные: цвет={}, яркость={}", color, brightness);
+        currentSettings.setColor(color);
+        if (brightness != null) {
+            currentSettings.setBrightness(brightness);
+        }
+        // Здесь можно отправить команду для изменения освещения в реальном времени
+    }
+
+    // Восстановление пользовательских настроек после сигнализации
+    public void restoreUserSettings() {
+        logger.info("Восстановление пользовательских настроек освещения: {}", userSettings);
+        currentSettings.setPower(userSettings.getPower());
+        currentSettings.setColor(userSettings.getColor());
+        currentSettings.setBrightness(userSettings.getBrightness());
+        // Отправить команду для восстановления освещения
+    }
+
+    // Геттер для текущих настроек
+    public LightingControlDto getCurrentSettings() {
+        return currentSettings;
+    }
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/service/MqttClientService.java:
+```
+package ru.gigastack.digitalmine.service;
+
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
+import org.eclipse.paho.client.mqttv3.MqttCallback;
+import org.eclipse.paho.client.mqttv3.MqttClient;
+import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
+import org.eclipse.paho.client.mqttv3.MqttException;
+import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.stereotype.Service;
+
+@Service
+public class MqttClientService {
+
+    private static final Logger logger = LoggerFactory.getLogger(MqttClientService.class);
+
+    // Используем TCP; для WebSocket можно изменить URL на: "ws://emqx.gigafs.v6.navy:8083/mqtt"
+    private static final String BROKER_URL = "tcp://emqx.gigafs.v6.navy:1883";
+    private static final String MQTT_CLIENT_ID = "DigitalMineBackendClient";
+    private static final String USERNAME = "admin";
+    private static final String PASSWORD = "admin76767676";
+
+    private MqttClient client;
+
+    // Inject SimpMessagingTemplate для отправки сообщений через WebSocket
+    private final SimpMessagingTemplate messagingTemplate;
+
+    public MqttClientService(SimpMessagingTemplate messagingTemplate) {
+        this.messagingTemplate = messagingTemplate;
+    }
+
+    @PostConstruct
+    public void init() {
+        try {
+            client = new MqttClient(BROKER_URL, MQTT_CLIENT_ID);
+
+            MqttConnectOptions options = new MqttConnectOptions();
+            options.setUserName(USERNAME);
+            options.setPassword(PASSWORD.toCharArray());
+            options.setCleanSession(true);
+
+            client.setCallback(new MqttCallback() {
+                @Override
+                public void connectionLost(Throwable cause) {
+                    logger.error("MQTT connection lost", cause);
+                }
+
+                @Override
+                public void messageArrived(String topic, MqttMessage message) {
+                    String payload = new String(message.getPayload());
+                    logger.info("Received MQTT message on topic {}: {}", topic, payload);
+
+                    // Передаём данные через WebSocket всем подписанным клиентам
+                    messagingTemplate.convertAndSend("/topic/sensorData", payload);
+                    logger.debug("Sent payload via WebSocket to /topic/sensorData");
+                }
+
+                @Override
+                public void deliveryComplete(IMqttDeliveryToken token) {
+                    logger.info("MQTT message delivery complete");
+                }
+            });
+
+            client.connect(options);
+            logger.info("Connected to MQTT broker at {}", BROKER_URL);
+
+            // Подписываемся на топик для получения данных с датчиков (расширьте список топиков при необходимости)
+            client.subscribe("sensors/test");
+            client.subscribe("pizda");
+            logger.info("Subscribed to MQTT topic sensors/test");
+
+        } catch (MqttException e) {
+            logger.error("Error initializing MQTT client", e);
+        }
+    }
+
+    /**
+     * Метод для публикации сообщений в MQTT.
+     *
+     * @param topic   топик, в который публикуется сообщение
+     * @param payload текст сообщения
+     */
+    public void publish(String topic, String payload) {
+        try {
+            MqttMessage message = new MqttMessage(payload.getBytes());
+            message.setQos(1); // Используем QoS 1; можно изменить при необходимости
+            client.publish(topic, message);
+            logger.info("Published MQTT message to topic {}: {}", topic, payload);
+        } catch (MqttException e) {
+            logger.error("Error publishing MQTT message", e);
+        }
+    }
+
+    @PreDestroy
+    public void shutdown() {
+        try {
+            if (client != null) {
+                client.disconnect();
+                logger.info("Disconnected from MQTT broker");
+            }
+        } catch (MqttException e) {
+            logger.error("Error disconnecting MQTT client", e);
+        }
+    }
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/service/VehicleService.java:
+```
+package ru.gigastack.digitalmine.service;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+
+@Service
+public class VehicleService {
+
+    private static final Logger logger = LoggerFactory.getLogger(VehicleService.class);
+    private int penaltyCount = 0;
+
+    // Симуляция выполнения маршрута электромобиля
+    public void startRoute() {
+        logger.info("Электромобиль начинает маршрут из точки А в точку Б, затем разворот и возврат в точку А");
+        // Здесь можно добавить логику для симуляции маршрута
+    }
+
+    // Добавление штрафа за сбитый конус
+    public void addPenalty() {
+        penaltyCount++;
+        logger.info("Добавлен штраф. Текущий счет штрафов: {}", penaltyCount);
+    }
+
+    public int getPenaltyCount() {
+        return penaltyCount;
+    }
+}
+```
+

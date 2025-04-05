@@ -47,7 +47,7 @@ public class SensorDataController {
 
         if (sensorData.getGasLevel() > gasThreshold) {
             logger.warn("Уровень газа ({}) превышает порог ({}), переключаем освещение на красный", sensorData.getGasLevel(), gasThreshold);
-            lightingService.overrideLighting("red", 100);
+            lightingService.overrideLighting("#FF0000", 100);
         }
 
         return ResponseEntity.status(HttpStatus.OK).body("Данные получены и сохранены");
