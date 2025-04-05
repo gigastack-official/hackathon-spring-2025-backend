@@ -38,6 +38,7 @@ public class MqttClientService implements MqttCallback {
 
     // --- Новый топик для RFID ---
     private static final String RFID_TOPIC = "rfid/scans";
+    private static final String RFID_RESP_TOPIC = "rfid/responses";
 
     // Для уведомления о газовой тревоге
     private static final String ALERT_TOPIC = "alert/updates";
@@ -201,57 +202,49 @@ public class MqttClientService implements MqttCallback {
     }
 
     // -------------- НОВАЯ ЛОГИКА ДЛЯ RFID-SCANS ---------------------
+
+
     private void handleRfidScan(String payload) {
         try {
-            // 1) Парсим входящий JSON
+            // Пришло что-то вроде: { "tagId": "123" }
             RFIDDto rfidDto = objectMapper.readValue(payload, RFIDDto.class);
 
-            // Если во входящем сообщении уже есть action/status,
-            // значит это "ответ", который мы сами (или другое ПО) сгенерировали.
-            // Чтобы не уйти в бесконечный цикл, просто игнорируем.
-            if (rfidDto.getAction() != null || rfidDto.getStatus() != null) {
-                logger.warn("Skipping message because it already has action/status: {}", payload);
-                return;
-            }
-
-            // Проверяем, что tagId не пустой
             if (rfidDto.getTagId() == null || rfidDto.getTagId().isBlank()) {
                 logger.warn("RFID MQTT message has no tagId, skipping");
                 return;
             }
 
-            // 2) Определяем enter/exit
-            String newAction = resolveAction(rfidDto.getTagId().trim());
+            // Определяем action (enter/exit) — например, смотрим, была ли последняя запись enter
+            String newAction = resolveAction(rfidDto.getTagId());
 
-            // 3) Проверяем, есть ли CardUser
-            Optional<CardUser> userOpt = cardUserService.findByCardId(rfidDto.getTagId().trim());
+            // Проверяем пользователя в card_users
+            Optional<CardUser> userOpt = cardUserService.findByCardId(rfidDto.getTagId());
             String status = userOpt.isPresent() ? "allowed" : "denied";
             String fullName = userOpt.map(CardUser::getFullName).orElse(null);
 
-            // 4) Пишем в rfid_log
+            // Сохраняем в rfid_log
             RfidLog log = new RfidLog();
-            log.setTagId(rfidDto.getTagId().trim());
+            log.setTagId(rfidDto.getTagId());
             log.setAction(newAction);
             log.setStatus(status);
-            log.setFullName(fullName); // <-- теперь точно запишется, если user есть
+            log.setFullName(fullName);
             log.setTimestamp(LocalDateTime.now());
             rfidLogRepository.save(log);
 
             logger.info("Saved RFID log: tagId={}, action={}, status={}, fullName={}",
                     rfidDto.getTagId(), newAction, status, fullName);
 
-            // 5) Формируем ответ, публикуем в тот же топик
-            //    Только теперь ответ содержит action/status/и можем добавить fullName,
-            //    но в вашем RFIDDto пока нет поля fullName, если захотите - добавьте в Dto.
+            // Формируем ответ
             RFIDDto response = new RFIDDto();
-            response.setTagId(rfidDto.getTagId().trim());
+            response.setTagId(rfidDto.getTagId());
             response.setAction(newAction);
             response.setStatus(status);
-            // Если хотите вернуть имя в ответе, добавьте поле fullName в RFIDDto
-            // response.setFullName(fullName);
+            // Если нужно вернуть имя, добавьте поле в DTO
 
             String responsePayload = objectMapper.writeValueAsString(response);
-            publish(RFID_TOPIC, responsePayload);
+
+            // Публикуем ответ уже НЕ в rfid/scans, а в rfid/responses
+            publish(RFID_RESP_TOPIC, responsePayload);
 
         } catch (Exception e) {
             logger.error("Error handling RFID scan from MQTT payload", e);
