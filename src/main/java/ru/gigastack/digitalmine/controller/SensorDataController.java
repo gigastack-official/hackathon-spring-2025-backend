@@ -27,7 +27,8 @@ public class SensorDataController {
     @Value("${sensor.gas.threshold:50.0}")
     private double gasThreshold;
 
-    public SensorDataController(SensorDataRepository sensorDataRepository, LightingService lightingService) {
+    public SensorDataController(SensorDataRepository sensorDataRepository,
+                                LightingService lightingService) {
         this.sensorDataRepository = sensorDataRepository;
         this.lightingService = lightingService;
     }
@@ -45,9 +46,18 @@ public class SensorDataController {
         sensorDataRepository.save(sensorData);
         logger.info("Данные датчика сохранены в БД");
 
-        if (sensorData.getGasLevel() > gasThreshold) {
-            logger.warn("Уровень газа ({}) превышает порог ({}), переключаем освещение на красный", sensorData.getGasLevel(), gasThreshold);
+        double gasLevel = sensorData.getGasLevel();
+        if (gasLevel > gasThreshold) {
+            logger.warn("Уровень газа ({}) превышает порог ({}), включаем аварийный режим (красный свет).",
+                    gasLevel, gasThreshold);
             lightingService.overrideLighting("#FF0000", 100);
+        } else {
+            // Если было аварийное переопределение, а теперь уровень ниже порога — восстанавливаем пользовательские настройки
+            if (lightingService.isEmergencyOverridden()) {
+                logger.info("Уровень газа ({}) снова ниже порога ({}), восстанавливаем пользовательские настройки освещения.",
+                        gasLevel, gasThreshold);
+                lightingService.restoreUserSettings();
+            }
         }
 
         return ResponseEntity.status(HttpStatus.OK).body("Данные получены и сохранены");

@@ -40,19 +40,11 @@ public class LightingController {
     @PostMapping("/restore")
     public ResponseEntity<String> restoreLightingSettings() {
         lightingService.restoreUserSettings();
-        mqttClientService.publish("lighting/control", "restore");
+        mqttClientService.publish("lighting/control", "{\"power\":true,\"color\":\"#000000\",\"brightness\":50}");
         logger.info("Пользовательские настройки освещения восстановлены");
         return ResponseEntity.ok("Пользовательские настройки освещения восстановлены");
     }
 
-    @PostMapping("/port")
-    public ResponseEntity<String> controlLightingPort(@RequestBody LightingControlDto controlDto) throws JsonProcessingException {
-        logger.info("Получена команда управления освещением через монитор порта: {}", controlDto);
-        lightingService.updateUserSettings(controlDto);
-        String jsonPayload = objectMapper.writeValueAsString(controlDto);
-        mqttClientService.publish("lighting/control", jsonPayload);
-        return ResponseEntity.ok("Команда управления освещением через монитор порта обработана");
-    }
 
     @GetMapping("/status")
     public ResponseEntity<LightingControlDto> getLightingStatus() {

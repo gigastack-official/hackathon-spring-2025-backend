@@ -16,62 +16,64 @@ public class VehicleController {
     private final VehicleService vehicleService;
     private final MqttClientService mqttClientService;
 
-    public VehicleController(VehicleService vehicleService, MqttClientService mqttClientService) {
+    public VehicleController(VehicleService vehicleService,
+                             MqttClientService mqttClientService) {
         this.vehicleService = vehicleService;
         this.mqttClientService = mqttClientService;
     }
 
-    @PostMapping("/control/start")
-    public ResponseEntity<String> startVehicleRoute() {
-        logger.info("Инициирован старт маршрута электромобиля");
-        vehicleService.startRoute();
-        mqttClientService.publish("vehicle/control", "start_route");
-        return ResponseEntity.ok("Маршрут электромобиля запущен");
-    }
 
     /**
-     * Пример ручного управления через POST /api/vehicle/control/move?direction=forward/backward/left/right
-     * Можно передавать параметры в JSON, если удобнее.
+     * Ручное управление движением, поддерживающее диагонали и передачи.
+     *
+     * Пример запроса:
+     *  POST /api/vehicle/control/move?direction=forward-left&action=press&gear=low
+     *
+     * direction: forward | backward | left | right | forward-left | forward-right | backward-left | backward-right
+     * action: press (нажата клавиша) / release (отжата)
+     * gear: low / high
      */
     @PostMapping("/control/move")
-    public ResponseEntity<String> moveVehicle(@RequestParam String direction) {
-        logger.info("Получена команда ручного управления: {}", direction);
+    public ResponseEntity<String> moveVehicle(
+            @RequestParam String direction,
+            @RequestParam(defaultValue = "press") String action,
+            @RequestParam(defaultValue = "low") String gear
+    ) {
+        logger.info("Получена команда управления: direction={}, action={}, gear={}", direction, action, gear);
 
-        // Можно реализовать логику во VehicleService, либо прямо тут.
-        // Для примера - просто отправляем MQTT-команду в "vehicle/control".
-        String mqttPayload;
-        switch (direction.toLowerCase()) {
-            case "forward":
-                mqttPayload = "move_forward";
-                break;
-            case "backward":
-                mqttPayload = "move_backward";
-                break;
-            case "left":
-                mqttPayload = "turn_left";
-                break;
-            case "right":
-                mqttPayload = "turn_right";
-                break;
-            default:
-                // Неверное направление
-                logger.warn("Неизвестная команда движения: {}", direction);
-                return ResponseEntity.badRequest().body("Неизвестная команда: " + direction);
-        }
+        // Формируем MQTT-пэйлоад, чтобы устройство знало, что делать
+        String mqttPayload = String.format("move_%s_%s_%s", direction, action, gear);
         mqttClientService.publish("vehicle/control", mqttPayload);
 
         logger.info("MQTT-команда отправлена: {}", mqttPayload);
-        return ResponseEntity.ok("Выполнена команда: " + mqttPayload);
+        return ResponseEntity.ok("Команда выполнена: " + mqttPayload);
     }
 
-    @PostMapping("/control/penalty")
-    public ResponseEntity<String> recordPenalty() {
-        logger.info("Зафиксировано столкновение с конусом");
-        vehicleService.addPenalty();
-        return ResponseEntity.ok("Штраф начислен. Текущий штраф: " + vehicleService.getPenaltyCount());
+    /**
+     * Управление камерой на электромобиле (например, наклон/поворот).
+     * direction: left, right, up, down, ...
+     * action: press / release
+     *
+     * Пример:
+     *  POST /api/vehicle/control/camera?direction=left&action=press
+     */
+    @PostMapping("/control/camera")
+    public ResponseEntity<String> controlCameraOnVehicle(
+            @RequestParam String direction,
+            @RequestParam(defaultValue = "press") String action
+    ) {
+        logger.info("Управление камерой: direction={}, action={}", direction, action);
+
+        String mqttPayload = String.format("camera_%s_%s", direction, action);
+        mqttClientService.publish("vehicle/control", mqttPayload);
+
+        return ResponseEntity.ok("Камера на электромобиле: отправлена команда " + mqttPayload);
     }
 
-    // Пример получения статуса: штрафы, состояние и т.п.
+
+    /**
+     * Пример получения статуса (количество штрафов и пр.).
+     */
     @GetMapping("/status")
     public ResponseEntity<String> getVehicleStatus() {
         return ResponseEntity.ok("Текущий штраф: " + vehicleService.getPenaltyCount());
