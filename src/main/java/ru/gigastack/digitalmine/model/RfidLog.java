@@ -25,6 +25,10 @@ public class RfidLog {
     @Column(name = "status", nullable = false)
     private String status;  // "allowed" / "denied" / etc.
 
+    // Новое поле: ФИО/Имя владельца карты. Может быть null, если "denied"
+    @Column(name = "full_name")
+    private String fullName;
+
     @Column(name = "timestamp", nullable = false)
     private LocalDateTime timestamp;
 }

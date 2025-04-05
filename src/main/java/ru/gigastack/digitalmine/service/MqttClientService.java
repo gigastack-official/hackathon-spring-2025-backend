@@ -10,21 +10,19 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import ru.gigastack.digitalmine.dto.LightingControlDto;
+import ru.gigastack.digitalmine.dto.RFIDDto;
 import ru.gigastack.digitalmine.dto.SensorDataDto;
+import ru.gigastack.digitalmine.model.CardUser;
+import ru.gigastack.digitalmine.model.RfidLog;
 import ru.gigastack.digitalmine.model.SensorData;
+import ru.gigastack.digitalmine.repository.RfidLogRepository;
 import ru.gigastack.digitalmine.repository.SensorDataRepository;
+import ru.gigastack.digitalmine.service.CardUserService;
+import ru.gigastack.digitalmine.service.LightingService;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
-/**
- * Пример доработанного MqttClientService, который:
- * 1) Парсит входящие сообщения с датчиков (JSON вида SensorDataDto).
- * 2) Сохраняет результаты в БД sensor_data.
- * 3) Детектирует опасное превышение уровня газа и включает аварийное освещение.
- * 4) После нормализации уровня газа восстанавливает освещение.
- * 5) Отправляет события о начале/окончании угрозы в отдельный топик (например, "alert/updates"),
- *    а также в "lighting/control" для реального управления лентой.
- */
 @Service
 public class MqttClientService implements MqttCallback {
 
@@ -35,13 +33,17 @@ public class MqttClientService implements MqttCallback {
     private static final String USERNAME = "admin";
     private static final String PASSWORD = "admin76767676";
 
-    // Топики, которые мы будем слушать
+    // --- Старый топик для сенсоров ---
     private static final String SENSORS_TOPIC = "sensors/test";
 
-    // Топики, на которые мы будем публиковать в случае тревоги / нормализации:
-    private static final String ALERT_TOPIC = "alert/updates";        // например, для фронта
-    private static final String LIGHTING_TOPIC = "lighting/control";  // для реального управления лентой
+    // --- Новый топик для RFID ---
+    private static final String RFID_TOPIC = "rfid/scans";
 
+    // Для уведомления о газовой тревоге
+    private static final String ALERT_TOPIC = "alert/updates";
+    private static final String LIGHTING_TOPIC = "lighting/control";
+
+    // Порог газа
     @Value("${sensor.gas.threshold:50.0}")
     private double gasThreshold;
 
@@ -49,23 +51,28 @@ public class MqttClientService implements MqttCallback {
 
     private final SimpMessagingTemplate messagingTemplate;
     private final SensorDataRepository sensorDataRepository;
+    private final RfidLogRepository rfidLogRepository;
     private final ObjectMapper objectMapper;
     private final LightingService lightingService;
+    private final CardUserService cardUserService;
 
-    // Будем хранить состояние угрозы, чтобы не посылать повторные сообщения при каждом новом пакете,
-    // если ничего не поменялось.
+    // Показывает, активно ли сейчас «угроза» загазованности
     private boolean threatActive = false;
 
     public MqttClientService(
             SimpMessagingTemplate messagingTemplate,
             SensorDataRepository sensorDataRepository,
+            RfidLogRepository rfidLogRepository,
             ObjectMapper objectMapper,
-            LightingService lightingService
+            LightingService lightingService,
+            CardUserService cardUserService
     ) {
         this.messagingTemplate = messagingTemplate;
         this.sensorDataRepository = sensorDataRepository;
+        this.rfidLogRepository = rfidLogRepository;
         this.objectMapper = objectMapper;
         this.lightingService = lightingService;
+        this.cardUserService = cardUserService;
     }
 
     @PostConstruct
@@ -77,14 +84,17 @@ public class MqttClientService implements MqttCallback {
             options.setUserName(USERNAME);
             options.setPassword(PASSWORD.toCharArray());
             options.setCleanSession(true);
+            options.setAutomaticReconnect(true); // Чтоб заново подключался при разрыве
 
             client.setCallback(this);
             client.connect(options);
             logger.info("Connected to MQTT broker at {}", BROKER_URL);
 
-            // Подписываемся на топик с данными датчиков
+            // Подписываемся и на сенсорный топик, и на RFID
             client.subscribe(SENSORS_TOPIC);
-            logger.info("Subscribed to MQTT topic: {}", SENSORS_TOPIC);
+            client.subscribe(RFID_TOPIC);
+
+            logger.info("Subscribed to MQTT topics: {}, {}", SENSORS_TOPIC, RFID_TOPIC);
 
         } catch (MqttException e) {
             logger.error("Error initializing MQTT client", e);
@@ -101,15 +111,20 @@ public class MqttClientService implements MqttCallback {
         String payload = new String(message.getPayload());
         logger.info("Received MQTT message on topic {}: {}", topic, payload);
 
-        // Передаём "сырой" payload во WebSocket (если фронт подписан на /topic/sensorData)
+        // Для наглядности шлём входящий payload на WebSocket
         messagingTemplate.convertAndSend("/topic/sensorData", payload);
 
-        // Обрабатываем только если это топик для датчиков
+        // Обрабатываем
         if (SENSORS_TOPIC.equals(topic)) {
             handleSensorData(payload);
+        } else if (RFID_TOPIC.equals(topic)) {
+            handleRfidScan(payload);
+        } else {
+            logger.warn("Unexpected topic: {}", topic);
         }
     }
 
+    // ---------------- ЛОГИКА СЕНСОРОВ (Старая) ----------------------
     private void handleSensorData(String payload) {
         try {
             SensorDataDto sensorDataDto = objectMapper.readValue(payload, SensorDataDto.class);
@@ -124,7 +139,7 @@ public class MqttClientService implements MqttCallback {
             sensorDataRepository.save(sensorData);
             logger.info("Sensor data saved: {}", sensorData);
 
-            // --- Детектируем превышение газа ---
+            // Проверка на превышение
             double gasLevel = sensorData.getGasLevel();
             if (gasLevel > gasThreshold) {
                 // Угроза!
@@ -133,7 +148,7 @@ public class MqttClientService implements MqttCallback {
                     onThreatStarted();
                 }
             } else {
-                // газа меньше порога -> при условии, что до этого была угроза, завершаем
+                // газа меньше порога -> если была угроза, завершаем
                 if (threatActive) {
                     threatActive = false;
                     onThreatEnded();
@@ -145,58 +160,119 @@ public class MqttClientService implements MqttCallback {
         }
     }
 
-    /**
-     * Вызывается, когда уровень газа стал выше порога и угроза ещё не зафиксирована.
-     */
     private void onThreatStarted() {
         logger.warn("THREAT DETECTED: Gas level is above threshold.");
-
-        // 1) override освещение (красный)
         lightingService.overrideLighting("#FF0000", 100);
 
-        // 2) Отправляем уведомление на фронт (websocket /topic/alert или /topic/updates).
-        //    Но поскольку брокер MQTT и фронт может слушать в MQTT, публикуем и туда, и через WebSocket, как нужно.
+        // Публикуем событие "THREAT_STARTED"
         publish(ALERT_TOPIC, "{\"status\":\"THREAT_STARTED\"}");
 
-        // 3) Отправляем на lighting/control, что надо принудительно задать #FF0000
-        LightingControlDto overrideDto = new LightingControlDto();
-        overrideDto.setPower(true);
-        overrideDto.setColor("#FF0000");
-        overrideDto.setBrightness(100);
-
-        publishLightingControlOverride(overrideDto);
+        // Жёстко указываем освещение #FF0000
+        publishLightingControlOverride(true, "#FF0000", 100);
     }
 
-    /**
-     * Вызывается, когда уровень газа снова стал ниже порога (конец угрозы).
-     */
     private void onThreatEnded() {
         logger.info("THREAT ENDED: Gas level is below threshold again.");
-
-        // 1) восстанавливаем пользовательские настройки
         lightingService.restoreUserSettings();
 
-        // 2) публикация для фронта
         publish(ALERT_TOPIC, "{\"status\":\"THREAT_ENDED\"}");
 
-
-        // 3) публикация на lighting/control, что нужно вернуть прежний цвет
-        //    (получим из lightingService.getCurrentSettings())
-        LightingControlDto restored = lightingService.getCurrentSettings();
-        publishLightingControlOverride(restored);
+        // Возвращаем на текущие настройки
+        publishLightingControlOverride(
+                lightingService.getCurrentSettings().getPower(),
+                lightingService.getCurrentSettings().getColor(),
+                lightingService.getCurrentSettings().getBrightness()
+        );
     }
 
-    /**
-     * Упрощённая публикация "lighting/control" в JSON формате.
-     */
-    private void publishLightingControlOverride(LightingControlDto dto) {
+    private void publishLightingControlOverride(Boolean power, String color, Integer brightness) {
         try {
+            LightingControlDto dto = new LightingControlDto();
+            dto.setPower(power);
+            dto.setColor(color);
+            dto.setBrightness(brightness);
+
             String json = objectMapper.writeValueAsString(dto);
             publish(LIGHTING_TOPIC, json);
+
         } catch (Exception e) {
             logger.error("Failed to serialize LightingControlDto to JSON", e);
         }
     }
+
+    // -------------- НОВАЯ ЛОГИКА ДЛЯ RFID-SCANS ---------------------
+    private void handleRfidScan(String payload) {
+        try {
+            // 1) Парсим входящий JSON
+            RFIDDto rfidDto = objectMapper.readValue(payload, RFIDDto.class);
+
+            // Если во входящем сообщении уже есть action/status,
+            // значит это "ответ", который мы сами (или другое ПО) сгенерировали.
+            // Чтобы не уйти в бесконечный цикл, просто игнорируем.
+            if (rfidDto.getAction() != null || rfidDto.getStatus() != null) {
+                logger.warn("Skipping message because it already has action/status: {}", payload);
+                return;
+            }
+
+            // Проверяем, что tagId не пустой
+            if (rfidDto.getTagId() == null || rfidDto.getTagId().isBlank()) {
+                logger.warn("RFID MQTT message has no tagId, skipping");
+                return;
+            }
+
+            // 2) Определяем enter/exit
+            String newAction = resolveAction(rfidDto.getTagId().trim());
+
+            // 3) Проверяем, есть ли CardUser
+            Optional<CardUser> userOpt = cardUserService.findByCardId(rfidDto.getTagId().trim());
+            String status = userOpt.isPresent() ? "allowed" : "denied";
+            String fullName = userOpt.map(CardUser::getFullName).orElse(null);
+
+            // 4) Пишем в rfid_log
+            RfidLog log = new RfidLog();
+            log.setTagId(rfidDto.getTagId().trim());
+            log.setAction(newAction);
+            log.setStatus(status);
+            log.setFullName(fullName); // <-- теперь точно запишется, если user есть
+            log.setTimestamp(LocalDateTime.now());
+            rfidLogRepository.save(log);
+
+            logger.info("Saved RFID log: tagId={}, action={}, status={}, fullName={}",
+                    rfidDto.getTagId(), newAction, status, fullName);
+
+            // 5) Формируем ответ, публикуем в тот же топик
+            //    Только теперь ответ содержит action/status/и можем добавить fullName,
+            //    но в вашем RFIDDto пока нет поля fullName, если захотите - добавьте в Dto.
+            RFIDDto response = new RFIDDto();
+            response.setTagId(rfidDto.getTagId().trim());
+            response.setAction(newAction);
+            response.setStatus(status);
+            // Если хотите вернуть имя в ответе, добавьте поле fullName в RFIDDto
+            // response.setFullName(fullName);
+
+            String responsePayload = objectMapper.writeValueAsString(response);
+            publish(RFID_TOPIC, responsePayload);
+
+        } catch (Exception e) {
+            logger.error("Error handling RFID scan from MQTT payload", e);
+        }
+    }
+
+    /**
+     * Смотрим, была ли последняя запись "enter" или "exit". Если не было записей или была "exit" — ставим "enter".
+     * Если была "enter" — ставим "exit".
+     */
+    private String resolveAction(String tagId) {
+        Optional<RfidLog> lastLog = rfidLogRepository.findTopByTagIdOrderByTimestampDesc(tagId);
+        if (lastLog.isEmpty()) {
+            // Первая запись: "enter"
+            return "enter";
+        }
+        String lastAction = lastLog.get().getAction();
+        return "enter".equalsIgnoreCase(lastAction) ? "exit" : "enter";
+    }
+
+    // ---------------------------------------------------------------
 
     @Override
     public void deliveryComplete(IMqttDeliveryToken token) {
@@ -206,7 +282,7 @@ public class MqttClientService implements MqttCallback {
     @PreDestroy
     public void shutdown() {
         try {
-            if (client != null) {
+            if (client != null && client.isConnected()) {
                 client.disconnect();
                 logger.info("Disconnected from MQTT broker");
             }
@@ -216,10 +292,14 @@ public class MqttClientService implements MqttCallback {
     }
 
     /**
-     * Метод для публикации сообщений в MQTT.
+     * Метод для публикации сообщений в MQTT (не меняем логику).
      */
     public void publish(String topic, String payload) {
         try {
+            if (client == null || !client.isConnected()) {
+                logger.warn("MQTT client is not connected, cannot publish: {}", payload);
+                return;
+            }
             MqttMessage message = new MqttMessage(payload.getBytes());
             message.setQos(1);
             client.publish(topic, message);

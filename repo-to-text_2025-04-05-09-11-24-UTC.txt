@@ -23,6 +23,7 @@ Directory Structure:
     │   │               ├── src/main/java/ru/gigastack/digitalmine/controller
     │   │               │   ├── src/main/java/ru/gigastack/digitalmine/controller/AuthController.java
     │   │               │   ├── src/main/java/ru/gigastack/digitalmine/controller/CameraController.java
+    │   │               │   ├── src/main/java/ru/gigastack/digitalmine/controller/CardUserController.java
     │   │               │   ├── src/main/java/ru/gigastack/digitalmine/controller/ClimateController.java
     │   │               │   ├── src/main/java/ru/gigastack/digitalmine/controller/LightingController.java
     │   │               │   ├── src/main/java/ru/gigastack/digitalmine/controller/RFIDController.java
@@ -34,10 +35,12 @@ Directory Structure:
     │   │               │   ├── src/main/java/ru/gigastack/digitalmine/dto/RFIDDto.java
     │   │               │   └── src/main/java/ru/gigastack/digitalmine/dto/SensorDataDto.java
     │   │               ├── src/main/java/ru/gigastack/digitalmine/model
+    │   │               │   ├── src/main/java/ru/gigastack/digitalmine/model/CardUser.java
     │   │               │   ├── src/main/java/ru/gigastack/digitalmine/model/RfidLog.java
     │   │               │   ├── src/main/java/ru/gigastack/digitalmine/model/SensorData.java
     │   │               │   └── src/main/java/ru/gigastack/digitalmine/model/User.java
     │   │               ├── src/main/java/ru/gigastack/digitalmine/repository
+    │   │               │   ├── src/main/java/ru/gigastack/digitalmine/repository/CardUserRepository.java
     │   │               │   ├── src/main/java/ru/gigastack/digitalmine/repository/RfidLogRepository.java
     │   │               │   ├── src/main/java/ru/gigastack/digitalmine/repository/SensorDataRepository.java
     │   │               │   └── src/main/java/ru/gigastack/digitalmine/repository/UserRepository.java
@@ -46,6 +49,7 @@ Directory Structure:
     │   │               │   ├── src/main/java/ru/gigastack/digitalmine/security/JwtAuthenticationFilter.java
     │   │               │   └── src/main/java/ru/gigastack/digitalmine/security/JwtTokenProvider.java
     │   │               └── src/main/java/ru/gigastack/digitalmine/service
+    │   │                   ├── src/main/java/ru/gigastack/digitalmine/service/CardUserService.java
     │   │                   ├── src/main/java/ru/gigastack/digitalmine/service/LightingService.java
     │   │                   ├── src/main/java/ru/gigastack/digitalmine/service/MqttClientService.java
     │   │                   ├── src/main/java/ru/gigastack/digitalmine/service/UserService.java
@@ -737,9 +741,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import ru.gigastack.digitalmine.model.RfidLog;
 
+import java.util.Optional;
+
 @Repository
 public interface RfidLogRepository extends JpaRepository<RfidLog, Long> {
-    // При желании можно добавить методы поиска по tagId или другим полям
+
+    // Важно: укажите, как в JPA найти последнюю запись по tagId (по timestamp убыванию).
+    Optional<RfidLog> findTopByTagIdOrderByTimestampDesc(String tagId);
 }
 ```
 
@@ -785,6 +793,20 @@ public interface SensorDataRepository extends JpaRepository<SensorData, Long> {
     Page<SensorData> findByTimestampLessThanEqualOrderByTimestampDesc(LocalDateTime end, Pageable pageable);
 
     Optional<SensorData> findTopByOrderByTimestampDesc();
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/repository/CardUserRepository.java:
+```
+package ru.gigastack.digitalmine.repository;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import ru.gigastack.digitalmine.model.CardUser;
+
+import java.util.Optional;
+
+public interface CardUserRepository extends JpaRepository<CardUser, Long> {
+    Optional<CardUser> findByCardId(String cardId);
 }
 ```
 
@@ -1219,19 +1241,11 @@ public class LightingController {
     @PostMapping("/restore")
     public ResponseEntity<String> restoreLightingSettings() {
         lightingService.restoreUserSettings();
-        mqttClientService.publish("lighting/control", "restore");
+        mqttClientService.publish("lighting/control", "{\"power\":true,\"color\":\"#000000\",\"brightness\":50}");
         logger.info("Пользовательские настройки освещения восстановлены");
         return ResponseEntity.ok("Пользовательские настройки освещения восстановлены");
     }
 
-    @PostMapping("/port")
-    public ResponseEntity<String> controlLightingPort(@RequestBody LightingControlDto controlDto) throws JsonProcessingException {
-        logger.info("Получена команда управления освещением через монитор порта: {}", controlDto);
-        lightingService.updateUserSettings(controlDto);
-        String jsonPayload = objectMapper.writeValueAsString(controlDto);
-        mqttClientService.publish("lighting/control", jsonPayload);
-        return ResponseEntity.ok("Команда управления освещением через монитор порта обработана");
-    }
 
     @GetMapping("/status")
     public ResponseEntity<LightingControlDto> getLightingStatus() {
@@ -1310,12 +1324,17 @@ Contents of src/main/java/ru/gigastack/digitalmine/controller/VehicleController.
 ```
 package ru.gigastack.digitalmine.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import ru.gigastack.digitalmine.service.MqttClientService;
 import ru.gigastack.digitalmine.service.VehicleService;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/vehicle")
@@ -1326,65 +1345,70 @@ public class VehicleController {
     private final VehicleService vehicleService;
     private final MqttClientService mqttClientService;
 
-    public VehicleController(VehicleService vehicleService, MqttClientService mqttClientService) {
+    public VehicleController(VehicleService vehicleService,
+                             MqttClientService mqttClientService) {
         this.vehicleService = vehicleService;
         this.mqttClientService = mqttClientService;
     }
 
-    @PostMapping("/control/start")
-    public ResponseEntity<String> startVehicleRoute() {
-        logger.info("Инициирован старт маршрута электромобиля");
-        vehicleService.startRoute();
-        mqttClientService.publish("vehicle/control", "start_route");
-        return ResponseEntity.ok("Маршрут электромобиля запущен");
+
+    /**
+     * Ручное управление движением, поддерживающее диагонали и передачи.
+     *
+     * Пример запроса:
+     *  POST /api/vehicle/control/move?direction=forward-left&action=press&gear=low
+     *
+     * direction: forward | backward | left | right | forward-left | forward-right | backward-left | backward-right
+     * action: press (нажата клавиша) / release (отжата)
+     * gear: low / high
+     */
+    @PostMapping("/control/move")
+    public ResponseEntity<String> moveVehicle(
+            @RequestParam String direction,
+            @RequestParam(defaultValue = "press") String action,
+            @RequestParam(defaultValue = "low") String gear
+    ) throws JsonProcessingException {
+        logger.info("Получена команда управления: direction={}, action={}, gear={}", direction, action, gear);
+
+        Map<String, String> payloadMap = new HashMap<>();
+        payloadMap.put("direction", direction);
+        payloadMap.put("action", action);
+        payloadMap.put("gear", gear);
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        String mqttPayload = objectMapper.writeValueAsString(payloadMap);
+
+        mqttClientService.publish("vehicle/control", mqttPayload);
+        logger.info("MQTT-команда отправлена: {}", mqttPayload);
+        return ResponseEntity.ok("Команда выполнена: " + mqttPayload);
     }
 
     /**
-     * Пример ручного управления через POST /api/vehicle/control/move?direction=forward/backward/left/right
-     * Можно передавать параметры в JSON, если удобнее.
+     * Управление камерой на электромобиле (например, наклон/поворот).
+     * direction: left, right, up, down, ...
+     * action: press / release
+     *
+     * Пример:
+     *  POST /api/vehicle/control/camera?direction=left&action=press
      */
-    @PostMapping("/control/move")
-    public ResponseEntity<String> moveVehicle(@RequestParam String direction) {
-        logger.info("Получена команда ручного управления: {}", direction);
+    @PostMapping("/control/camera")
+    public ResponseEntity<String> controlCameraOnVehicle(
+            @RequestParam String direction,
+            @RequestParam(defaultValue = "press") String action
+    ) throws JsonProcessingException {
+        logger.info("Управление камерой: direction={}, action={}", direction, action);
 
-        // Можно реализовать логику во VehicleService, либо прямо тут.
-        // Для примера - просто отправляем MQTT-команду в "vehicle/control".
-        String mqttPayload;
-        switch (direction.toLowerCase()) {
-            case "forward":
-                mqttPayload = "move_forward";
-                break;
-            case "backward":
-                mqttPayload = "move_backward";
-                break;
-            case "left":
-                mqttPayload = "turn_left";
-                break;
-            case "right":
-                mqttPayload = "turn_right";
-                break;
-            default:
-                // Неверное направление
-                logger.warn("Неизвестная команда движения: {}", direction);
-                return ResponseEntity.badRequest().body("Неизвестная команда: " + direction);
-        }
+        Map<String, String> payloadMap = new HashMap<>();
+        payloadMap.put("direction", direction);
+        payloadMap.put("action", action);
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        String mqttPayload = objectMapper.writeValueAsString(payloadMap);
+
         mqttClientService.publish("vehicle/control", mqttPayload);
 
-        logger.info("MQTT-команда отправлена: {}", mqttPayload);
-        return ResponseEntity.ok("Выполнена команда: " + mqttPayload);
-    }
 
-    @PostMapping("/control/penalty")
-    public ResponseEntity<String> recordPenalty() {
-        logger.info("Зафиксировано столкновение с конусом");
-        vehicleService.addPenalty();
-        return ResponseEntity.ok("Штраф начислен. Текущий штраф: " + vehicleService.getPenaltyCount());
-    }
-
-    // Пример получения статуса: штрафы, состояние и т.п.
-    @GetMapping("/status")
-    public ResponseEntity<String> getVehicleStatus() {
-        return ResponseEntity.ok("Текущий штраф: " + vehicleService.getPenaltyCount());
+        return ResponseEntity.ok("Камера на электромобиле: отправлена команда " + mqttPayload);
     }
 }
 ```
@@ -1476,6 +1500,7 @@ import org.springframework.web.bind.annotation.*;
 import ru.gigastack.digitalmine.dto.RFIDDto;
 import ru.gigastack.digitalmine.model.RfidLog;
 import ru.gigastack.digitalmine.repository.RfidLogRepository;
+import ru.gigastack.digitalmine.service.CardUserService;
 import ru.gigastack.digitalmine.service.LightingService;
 
 import java.time.LocalDateTime;
@@ -1490,47 +1515,82 @@ public class RFIDController {
 
     private final LightingService lightingService;
     private final RfidLogRepository rfidLogRepository;
+    private final CardUserService cardUserService;
 
-    public RFIDController(LightingService lightingService, RfidLogRepository rfidLogRepository) {
+    public RFIDController(
+            LightingService lightingService,
+            RfidLogRepository rfidLogRepository,
+            CardUserService cardUserService
+    ) {
         this.lightingService = lightingService;
         this.rfidLogRepository = rfidLogRepository;
+        this.cardUserService = cardUserService;
     }
 
     @PostMapping("/scan")
     public ResponseEntity<String> scanRFID(@RequestBody RFIDDto rfidDto) {
         logger.info("Считана RFID метка: {}", rfidDto.getTagId());
 
-        // Сохранение в таблицу rfid_log
-        RfidLog rfidLog = new RfidLog();
-        rfidLog.setTagId(rfidDto.getTagId());
-        // Если action не передали, считаем, что это "enter"
+        // Определяем action
         String action = (rfidDto.getAction() == null || rfidDto.getAction().isBlank())
                 ? "enter"
                 : rfidDto.getAction().toLowerCase();
 
+        // Проверяем, зарегистрирована ли эта карта
+        boolean cardExists = cardUserService.cardExists(rfidDto.getTagId());
+        String status = cardExists ? "allowed" : "denied";
+
+        // Запись в rfid_log
+        RfidLog rfidLog = new RfidLog();
+        rfidLog.setTagId(rfidDto.getTagId());
         rfidLog.setAction(action);
+        rfidLog.setStatus(status);
         rfidLog.setTimestamp(LocalDateTime.now());
         rfidLogRepository.save(rfidLog);
 
         // Логируем
-        logger.info("RFID данные отправлены на веб-интерфейс: {}, действие: {}", rfidDto.getTagId(), action);
+        logger.info("RFID Log saved. Tag={}, Action={}, Status={}", rfidDto.getTagId(), action, status);
 
-        // Автоматическое управление освещением в зависимости от действия
-        switch (action) {
-            case "exit":
-                logger.info("Освещение: ЖЁЛТЫЙ (выход)");
-                lightingService.overrideLighting("#FFFF00", 100);
-                break;
-            case "enter":
-            default:
-                logger.info("Освещение: БЕЛЫЙ (вход)");
-                lightingService.overrideLighting("#FFFFFF", 100);
-                break;
+        // Если «denied», можно не включать свет или включать красный, как угодно
+        if ("denied".equals(status)) {
+            logger.warn("Доступ отклонён для метки {}", rfidDto.getTagId());
+            // например, свет моргает красным или ничего не делаем
+            // lightingService.overrideLighting("#FF0000", 100);
+            // ...
+        } else {
+            // Если «allowed» — тогда делаем обычную логику освещения
+            switch (action) {
+                case "exit":
+                    logger.info("Освещение: Жёлтый (выход)");
+                    lightingService.overrideLighting("#FFFF00", 100);
+                    // Можно через X секунд вернуть
+                    new Thread(() -> {
+                        try {
+                            Thread.sleep(5000L);
+                            lightingService.restoreUserSettings();
+                            logger.info("Свет восстановлен после выхода");
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }).start();
+                    break;
+
+                case "enter":
+                default:
+                    logger.info("Освещение: Белый (вход)");
+                    lightingService.overrideLighting("#FFFFFF", 100);
+                    break;
+            }
         }
 
-        return ResponseEntity.ok("RFID метка обработана, действие: " + action);
+        return ResponseEntity.ok(
+                "RFID метка: " + rfidDto.getTagId() +
+                        ", action=" + action +
+                        ", status=" + status
+        );
     }
 
+    // получить все логи
     @GetMapping("/logs")
     public ResponseEntity<List<RfidLog>> getAllRfidLogs() {
         List<RfidLog> logs = rfidLogRepository.findAll();
@@ -1570,7 +1630,8 @@ public class SensorDataController {
     @Value("${sensor.gas.threshold:50.0}")
     private double gasThreshold;
 
-    public SensorDataController(SensorDataRepository sensorDataRepository, LightingService lightingService) {
+    public SensorDataController(SensorDataRepository sensorDataRepository,
+                                LightingService lightingService) {
         this.sensorDataRepository = sensorDataRepository;
         this.lightingService = lightingService;
     }
@@ -1588,9 +1649,18 @@ public class SensorDataController {
         sensorDataRepository.save(sensorData);
         logger.info("Данные датчика сохранены в БД");
 
-        if (sensorData.getGasLevel() > gasThreshold) {
-            logger.warn("Уровень газа ({}) превышает порог ({}), переключаем освещение на красный", sensorData.getGasLevel(), gasThreshold);
+        double gasLevel = sensorData.getGasLevel();
+        if (gasLevel > gasThreshold) {
+            logger.warn("Уровень газа ({}) превышает порог ({}), включаем аварийный режим (красный свет).",
+                    gasLevel, gasThreshold);
             lightingService.overrideLighting("#FF0000", 100);
+        } else {
+            // Если было аварийное переопределение, а теперь уровень ниже порога — восстанавливаем пользовательские настройки
+            if (lightingService.isEmergencyOverridden()) {
+                logger.info("Уровень газа ({}) снова ниже порога ({}), восстанавливаем пользовательские настройки освещения.",
+                        gasLevel, gasThreshold);
+                lightingService.restoreUserSettings();
+            }
         }
 
         return ResponseEntity.status(HttpStatus.OK).body("Данные получены и сохранены");
@@ -1601,6 +1671,76 @@ public class SensorDataController {
         Optional<SensorData> latestData = sensorDataRepository.findTopByOrderByTimestampDesc();
         return latestData.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.noContent().build());
     }
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/controller/CardUserController.java:
+```
+package ru.gigastack.digitalmine.controller;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+import ru.gigastack.digitalmine.model.CardUser;
+import ru.gigastack.digitalmine.service.CardUserService;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/card-users")
+@CrossOrigin(origins = "*")
+public class CardUserController {
+
+    private final CardUserService cardUserService;
+
+    @Autowired
+    public CardUserController(CardUserService cardUserService) {
+        this.cardUserService = cardUserService;
+    }
+
+    @GetMapping
+    public List<CardUser> getAllCardUsers() {
+        return cardUserService.findAll();
+    }
+
+    @PostMapping
+    public CardUser createCardUser(@RequestBody CardUser cardUser) {
+        return cardUserService.createCardUser(
+                cardUser.getCardId(),
+                cardUser.getFullName(),
+                cardUser.getRole()
+        );
+    }
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/model/CardUser.java:
+```
+package ru.gigastack.digitalmine.model;
+
+import jakarta.persistence.*;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@Entity
+@Table(name = "card_users")
+public class CardUser {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    // Уникальный ID карты, который будет совпадать с rfidDto.tagId
+    @Column(name = "card_id", unique = true, nullable = false)
+    private String cardId;
+
+    @Column(name = "full_name", nullable = false)
+    private String fullName;
+
+    // Роль, уровень доступа и т.п.
+    @Column(name = "role")
+    private String role;
 }
 ```
 
@@ -1675,7 +1815,6 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
 import java.time.LocalDateTime;
 
 @Data
@@ -1695,12 +1834,14 @@ public class RfidLog {
     private String action;
 
     @Column(name = "status", nullable = false)
-    private  String status;
+    private String status;  // "allowed" / "denied" / etc.
+
+    // Новое поле: ФИО/Имя владельца карты. Может быть null, если "denied"
+    @Column(name = "full_name")
+    private String fullName;
 
     @Column(name = "timestamp", nullable = false)
     private LocalDateTime timestamp;
-
-
 }
 ```
 
@@ -1763,55 +1904,153 @@ public class LightingService {
     // Текущие активные настройки (могут быть изменены системой для сигнализации)
     private LightingControlDto currentSettings = new LightingControlDto();
 
+    // Флаг, указывающий, что освещение «принудительно переопределено» (авария/выход и пр.)
+    private boolean emergencyOverridden;
+
     public LightingService() {
         // Инициализация значений по умолчанию
         userSettings.setPower(true);
-        userSettings.setColor("white");
+        userSettings.setColor("#FFFFFF");  // Лучше хранить в HEX
         userSettings.setBrightness(100);
 
         // Изначально активные настройки совпадают с пользовательскими
         currentSettings.setPower(userSettings.getPower());
         currentSettings.setColor(userSettings.getColor());
         currentSettings.setBrightness(userSettings.getBrightness());
+
+        this.emergencyOverridden = false;
     }
 
-    // Обновление настроек, установленных пользователем
+    /**
+     * Обновление настроек, установленных пользователем (ручной режим).
+     * Если система сейчас не в «аварийном режиме» — обновляем сразу же.
+     */
     public void updateUserSettings(LightingControlDto newSettings) {
         logger.info("Обновление пользовательских настроек освещения: {}", newSettings);
+
+        // Сохраняем пользовательские настройки
         userSettings.setPower(newSettings.getPower());
         userSettings.setColor(newSettings.getColor());
         userSettings.setBrightness(newSettings.getBrightness());
 
-        // Применяем изменения немедленно, если нет сигнализации
-        currentSettings.setPower(newSettings.getPower());
-        currentSettings.setColor(newSettings.getColor());
-        currentSettings.setBrightness(newSettings.getBrightness());
-
-        // Здесь можно добавить код для отправки команд на аппаратное обеспечение
+        // Если не аварийный режим — применяем немедленно
+        if (!emergencyOverridden) {
+            currentSettings.setPower(newSettings.getPower());
+            currentSettings.setColor(newSettings.getColor());
+            currentSettings.setBrightness(newSettings.getBrightness());
+        }
+        // Если аварийный режим включён — применяем новое значение только после restoreUserSettings()
     }
 
-    // Автоматическое переопределение настроек при сигнализации
+    /**
+     * Принудительное переопределение настроек (например, при аварии).
+     */
     public void overrideLighting(String color, Integer brightness) {
         logger.info("Переопределение настроек освещения на аварийные: цвет={}, яркость={}", color, brightness);
-        currentSettings.setColor(color);
+
+        // Включаем флаг «аварийное переопределение»
+        emergencyOverridden = true;
+
+        // Мгновенно меняем текущие настройки
+        if (color != null) {
+            currentSettings.setColor(color);
+        }
         if (brightness != null) {
             currentSettings.setBrightness(brightness);
         }
-        // Здесь можно отправить команду для изменения освещения в реальном времени
+        currentSettings.setPower(true); // обычно при аварии обязательно включаем свет
     }
 
-    // Восстановление пользовательских настроек после сигнализации
+    /**
+     * Восстановление пользовательских настроек после сигнала опасности.
+     */
     public void restoreUserSettings() {
         logger.info("Восстановление пользовательских настроек освещения: {}", userSettings);
+        emergencyOverridden = false;
         currentSettings.setPower(userSettings.getPower());
         currentSettings.setColor(userSettings.getColor());
         currentSettings.setBrightness(userSettings.getBrightness());
-        // Отправить команду для восстановления освещения
     }
 
-    // Геттер для текущих настроек
     public LightingControlDto getCurrentSettings() {
         return currentSettings;
+    }
+
+    public boolean isEmergencyOverridden() {
+        return emergencyOverridden;
+    }
+}
+```
+
+Contents of src/main/java/ru/gigastack/digitalmine/service/CardUserService.java:
+```
+package ru.gigastack.digitalmine.service;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import ru.gigastack.digitalmine.model.CardUser;
+import ru.gigastack.digitalmine.repository.CardUserRepository;
+
+import java.util.List;
+import java.util.Optional;
+
+/**
+ * Пример сервиса для управления владельцами карт (CardUser).
+ * Тут вы можете хранить любую бизнес-логику, связанную с ними.
+ */
+@Service
+public class CardUserService {
+
+    private final CardUserRepository cardUserRepository;
+
+    @Autowired
+    public CardUserService(CardUserRepository cardUserRepository) {
+        this.cardUserRepository = cardUserRepository;
+    }
+
+    /**
+     * Проверяем, зарегистрирована ли карта в БД.
+     */
+    public boolean cardExists(String cardId) {
+        return cardUserRepository.findByCardId(cardId).isPresent();
+    }
+
+    /**
+     * Возвращаем CardUser, если есть.
+     */
+    public Optional<CardUser> findByCardId(String cardId) {
+        return cardUserRepository.findByCardId(cardId);
+    }
+
+    /**
+     * Создание (регистрация) нового владельца RFID-карты.
+     */
+    public CardUser createCardUser(String cardId, String fullName, String role) {
+        // Проверка, нет ли уже такой карты
+        if (cardExists(cardId)) {
+            throw new RuntimeException("Карта с таким ID уже зарегистрирована");
+        }
+
+        CardUser user = new CardUser();
+        user.setCardId(cardId);
+        user.setFullName(fullName);
+        user.setRole(role);
+
+        return cardUserRepository.save(user);
+    }
+
+    /**
+     * Просто получить список всех владельцев карт
+     */
+    public List<CardUser> findAll() {
+        return cardUserRepository.findAll();
+    }
+
+    /**
+     * Найти по id из БД (не путать с cardId)
+     */
+    public Optional<CardUser> findById(Long id) {
+        return cardUserRepository.findById(id);
     }
 }
 ```
@@ -1823,45 +2062,76 @@ package ru.gigastack.digitalmine.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
-import org.eclipse.paho.client.mqttv3.MqttCallback;
-import org.eclipse.paho.client.mqttv3.MqttClient;
-import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
-import org.eclipse.paho.client.mqttv3.MqttException;
-import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.eclipse.paho.client.mqttv3.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
+import ru.gigastack.digitalmine.dto.LightingControlDto;
+import ru.gigastack.digitalmine.dto.RFIDDto;
 import ru.gigastack.digitalmine.dto.SensorDataDto;
+import ru.gigastack.digitalmine.model.CardUser;
+import ru.gigastack.digitalmine.model.RfidLog;
 import ru.gigastack.digitalmine.model.SensorData;
+import ru.gigastack.digitalmine.repository.RfidLogRepository;
 import ru.gigastack.digitalmine.repository.SensorDataRepository;
+import ru.gigastack.digitalmine.service.CardUserService;
+import ru.gigastack.digitalmine.service.LightingService;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Service
 public class MqttClientService implements MqttCallback {
 
     private static final Logger logger = LoggerFactory.getLogger(MqttClientService.class);
 
-    // URL, логин и пароль у вас уже прописаны
     private static final String BROKER_URL = "tcp://emqx.gigafs.v6.navy:1883";
     private static final String MQTT_CLIENT_ID = "DigitalMineBackendClient";
     private static final String USERNAME = "admin";
     private static final String PASSWORD = "admin76767676";
 
+    // --- Старый топик для сенсоров ---
+    private static final String SENSORS_TOPIC = "sensors/test";
+
+    // --- Новый топик для RFID ---
+    private static final String RFID_TOPIC = "rfid/scans";
+
+    // Для уведомления о газовой тревоге
+    private static final String ALERT_TOPIC = "alert/updates";
+    private static final String LIGHTING_TOPIC = "lighting/control";
+
+    // Порог газа
+    @Value("${sensor.gas.threshold:50.0}")
+    private double gasThreshold;
+
     private MqttClient client;
 
     private final SimpMessagingTemplate messagingTemplate;
-    private final SensorDataRepository sensorDataRepository; // <-- добавляем
-    private final ObjectMapper objectMapper;                 // <-- для парсинга JSON (через Jackson)
+    private final SensorDataRepository sensorDataRepository;
+    private final RfidLogRepository rfidLogRepository;
+    private final ObjectMapper objectMapper;
+    private final LightingService lightingService;
+    private final CardUserService cardUserService;
 
-    public MqttClientService(SimpMessagingTemplate messagingTemplate,
-                             SensorDataRepository sensorDataRepository,  // <-- внедряем репозиторий
-                             ObjectMapper objectMapper) {                 // <-- и ObjectMapper
+    // Показывает, активно ли сейчас «угроза» загазованности
+    private boolean threatActive = false;
+
+    public MqttClientService(
+            SimpMessagingTemplate messagingTemplate,
+            SensorDataRepository sensorDataRepository,
+            RfidLogRepository rfidLogRepository,
+            ObjectMapper objectMapper,
+            LightingService lightingService,
+            CardUserService cardUserService
+    ) {
         this.messagingTemplate = messagingTemplate;
         this.sensorDataRepository = sensorDataRepository;
+        this.rfidLogRepository = rfidLogRepository;
         this.objectMapper = objectMapper;
+        this.lightingService = lightingService;
+        this.cardUserService = cardUserService;
     }
 
     @PostConstruct
@@ -1873,17 +2143,17 @@ public class MqttClientService implements MqttCallback {
             options.setUserName(USERNAME);
             options.setPassword(PASSWORD.toCharArray());
             options.setCleanSession(true);
+            options.setAutomaticReconnect(true); // Чтоб заново подключался при разрыве
 
-            // Настраиваем callbacks
             client.setCallback(this);
-
-            // Подключаемся к брокеру
             client.connect(options);
             logger.info("Connected to MQTT broker at {}", BROKER_URL);
 
-            // Подписываемся на один или несколько топиков
-            client.subscribe("sensors/test");
-            logger.info("Subscribed to MQTT topic: sensors/test");
+            // Подписываемся и на сенсорный топик, и на RFID
+            client.subscribe(SENSORS_TOPIC);
+            client.subscribe(RFID_TOPIC);
+
+            logger.info("Subscribed to MQTT topics: {}, {}", SENSORS_TOPIC, RFID_TOPIC);
 
         } catch (MqttException e) {
             logger.error("Error initializing MQTT client", e);
@@ -1897,33 +2167,162 @@ public class MqttClientService implements MqttCallback {
 
     @Override
     public void messageArrived(String topic, MqttMessage message) {
-        // 1) Преобразуем payload в строку
         String payload = new String(message.getPayload());
         logger.info("Received MQTT message on topic {}: {}", topic, payload);
 
-        // 2) Если у нас JSON данных датчиков, пробуем распарсить
+        // Для наглядности шлём входящий payload на WebSocket
+        messagingTemplate.convertAndSend("/topic/sensorData", payload);
+
+        // Обрабатываем
+        if (SENSORS_TOPIC.equals(topic)) {
+            handleSensorData(payload);
+        } else if (RFID_TOPIC.equals(topic)) {
+            handleRfidScan(payload);
+        } else {
+            logger.warn("Unexpected topic: {}", topic);
+        }
+    }
+
+    // ---------------- ЛОГИКА СЕНСОРОВ (Старая) ----------------------
+    private void handleSensorData(String payload) {
         try {
-            // Допустим, payload приходит в том же формате, что и ваш SensorDataDto
             SensorDataDto sensorDataDto = objectMapper.readValue(payload, SensorDataDto.class);
 
-            // 3) Создаём сущность и сохраняем в БД
+            // Сохраняем в БД
             SensorData sensorData = new SensorData();
             sensorData.setGasLevel(sensorDataDto.getGasLevel());
             sensorData.setTemperature(sensorDataDto.getTemperature());
             sensorData.setHumidity(sensorDataDto.getHumidity());
-            sensorData.setTimestamp(LocalDateTime.now()); // ставим текущее время или используем из DTO
+            sensorData.setTimestamp(LocalDateTime.now());
 
             sensorDataRepository.save(sensorData);
-            logger.info("Sensor data saved to DB: {}", sensorData);
+            logger.info("Sensor data saved: {}", sensorData);
+
+            // Проверка на превышение
+            double gasLevel = sensorData.getGasLevel();
+            if (gasLevel > gasThreshold) {
+                // Угроза!
+                if (!threatActive) {
+                    threatActive = true;
+                    onThreatStarted();
+                }
+            } else {
+                // газа меньше порога -> если была угроза, завершаем
+                if (threatActive) {
+                    threatActive = false;
+                    onThreatEnded();
+                }
+            }
 
         } catch (Exception e) {
             logger.error("Error parsing or saving sensor data from MQTT payload", e);
         }
-
-        // 4) Передаём данные через WebSocket всем подписанным клиентам (по желанию)
-        messagingTemplate.convertAndSend("/topic/sensorData", payload);
-        logger.debug("Sent payload via WebSocket to /topic/sensorData");
     }
+
+    private void onThreatStarted() {
+        logger.warn("THREAT DETECTED: Gas level is above threshold.");
+        lightingService.overrideLighting("#FF0000", 100);
+
+        // Публикуем событие "THREAT_STARTED"
+        publish(ALERT_TOPIC, "{\"status\":\"THREAT_STARTED\"}");
+
+        // Жёстко указываем освещение #FF0000
+        publishLightingControlOverride(true, "#FF0000", 100);
+    }
+
+    private void onThreatEnded() {
+        logger.info("THREAT ENDED: Gas level is below threshold again.");
+        lightingService.restoreUserSettings();
+
+        publish(ALERT_TOPIC, "{\"status\":\"THREAT_ENDED\"}");
+
+        // Возвращаем на текущие настройки
+        publishLightingControlOverride(
+                lightingService.getCurrentSettings().getPower(),
+                lightingService.getCurrentSettings().getColor(),
+                lightingService.getCurrentSettings().getBrightness()
+        );
+    }
+
+    private void publishLightingControlOverride(Boolean power, String color, Integer brightness) {
+        try {
+            LightingControlDto dto = new LightingControlDto();
+            dto.setPower(power);
+            dto.setColor(color);
+            dto.setBrightness(brightness);
+
+            String json = objectMapper.writeValueAsString(dto);
+            publish(LIGHTING_TOPIC, json);
+
+        } catch (Exception e) {
+            logger.error("Failed to serialize LightingControlDto to JSON", e);
+        }
+    }
+
+    // -------------- НОВАЯ ЛОГИКА ДЛЯ RFID-SCANS ---------------------
+    private void handleRfidScan(String payload) {
+        try {
+            // Входящий JSON { "tagId": "ABC123" }
+            RFIDDto rfidDto = objectMapper.readValue(payload, RFIDDto.class);
+            if (rfidDto.getTagId() == null || rfidDto.getTagId().isBlank()) {
+                logger.warn("RFID MQTT message has no tagId, skipping");
+                return;
+            }
+
+            // Определяем action: если последняя запись для этого tagId была "enter", теперь "exit". Иначе "enter".
+            String newAction = resolveAction(rfidDto.getTagId());
+
+            // Проверяем, есть ли cardUser
+            Optional<CardUser> userOpt = cardUserService.findByCardId(rfidDto.getTagId());
+            String status = userOpt.isPresent() ? "allowed" : "denied";
+            String fullName = userOpt.map(CardUser::getFullName).orElse(null);
+
+            // Пишем в rfid_log
+            RfidLog log = new RfidLog();
+            log.setTagId(rfidDto.getTagId());
+            log.setAction(newAction);
+            log.setStatus(status);
+            log.setFullName(fullName);
+            log.setTimestamp(LocalDateTime.now());
+            rfidLogRepository.save(log);
+
+            logger.info("Saved RFID log: tagId={}, action={}, status={}, fullName={}",
+                    rfidDto.getTagId(), newAction, status, fullName);
+
+            // Формируем ответ, который отправим в ТОТ ЖЕ топик "rfid/scans".
+            RFIDDto response = new RFIDDto();
+            response.setTagId(rfidDto.getTagId());
+            response.setAction(newAction);
+            response.setStatus(status);
+            // Поле fullName нет в вашем RFIDDto? Добавьте, если хотите возвращать:
+            // response.setFullName(fullName);
+
+            // Сериализуем в JSON
+            String responsePayload = objectMapper.writeValueAsString(response);
+
+            // Публикуем
+            publish(RFID_TOPIC, responsePayload);
+
+        } catch (Exception e) {
+            logger.error("Error handling RFID scan from MQTT payload", e);
+        }
+    }
+
+    /**
+     * Смотрим, была ли последняя запись "enter" или "exit". Если не было записей или была "exit" — ставим "enter".
+     * Если была "enter" — ставим "exit".
+     */
+    private String resolveAction(String tagId) {
+        Optional<RfidLog> lastLog = rfidLogRepository.findTopByTagIdOrderByTimestampDesc(tagId);
+        if (lastLog.isEmpty()) {
+            // Первая запись: "enter"
+            return "enter";
+        }
+        String lastAction = lastLog.get().getAction();
+        return "enter".equalsIgnoreCase(lastAction) ? "exit" : "enter";
+    }
+
+    // ---------------------------------------------------------------
 
     @Override
     public void deliveryComplete(IMqttDeliveryToken token) {
@@ -1933,7 +2332,7 @@ public class MqttClientService implements MqttCallback {
     @PreDestroy
     public void shutdown() {
         try {
-            if (client != null) {
+            if (client != null && client.isConnected()) {
                 client.disconnect();
                 logger.info("Disconnected from MQTT broker");
             }
@@ -1943,10 +2342,14 @@ public class MqttClientService implements MqttCallback {
     }
 
     /**
-     * Метод для публикации сообщений в MQTT.
+     * Метод для публикации сообщений в MQTT (не меняем логику).
      */
     public void publish(String topic, String payload) {
         try {
+            if (client == null || !client.isConnected()) {
+                logger.warn("MQTT client is not connected, cannot publish: {}", payload);
+                return;
+            }
             MqttMessage message = new MqttMessage(payload.getBytes());
             message.setQos(1);
             client.publish(topic, message);
@@ -1969,24 +2372,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class VehicleService {
 
-    private static final Logger logger = LoggerFactory.getLogger(VehicleService.class);
-    private int penaltyCount = 0;
-
-    // Симуляция выполнения маршрута электромобиля
-    public void startRoute() {
-        logger.info("Электромобиль начинает маршрут из точки А в точку Б, затем разворот и возврат в точку А");
-        // Здесь можно добавить логику для симуляции маршрута
-    }
-
-    // Добавление штрафа за сбитый конус
-    public void addPenalty() {
-        penaltyCount++;
-        logger.info("Добавлен штраф. Текущий счет штрафов: {}", penaltyCount);
-    }
-
-    public int getPenaltyCount() {
-        return penaltyCount;
-    }
 }
 ```
 
