@@ -23,6 +23,11 @@ public class RfidLog {
     @Column(name = "action", nullable = false)
     private String action;
 
+    @Column(name = "status", nullable = false)
+    private  String status;
+
     @Column(name = "timestamp", nullable = false)
     private LocalDateTime timestamp;
+
+
 }

@@ -10,4 +10,6 @@ public class RFIDDto {
 
     // Необязательное поле, указывающее действие, например "enter" или "exit"
     private String action;
+
+    private String status;
 }

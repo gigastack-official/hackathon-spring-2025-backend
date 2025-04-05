@@ -1,7 +1,10 @@
 package ru.gigastack.digitalmine.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import ru.gigastack.digitalmine.dto.LightingControlDto;
@@ -16,6 +19,8 @@ public class LightingController {
     private static final Logger logger = LoggerFactory.getLogger(LightingController.class);
     private final LightingService lightingService;
     private final MqttClientService mqttClientService;
+    @Autowired
+    private ObjectMapper objectMapper;
 
     public LightingController(LightingService lightingService, MqttClientService mqttClientService) {
         this.lightingService = lightingService;
@@ -23,11 +28,12 @@ public class LightingController {
     }
 
     @PostMapping("/web")
-    public ResponseEntity<String> controlLightingWeb(@RequestBody LightingControlDto controlDto) {
+    public ResponseEntity<String> controlLightingWeb(@RequestBody LightingControlDto controlDto) throws JsonProcessingException {
         logger.info("Получена команда управления освещением через веб-интерфейс: {}", controlDto);
         lightingService.updateUserSettings(controlDto);
         // Отправка команды на MQTT брокер
-        mqttClientService.publish("lighting/control", controlDto.toString());
+        String jsonPayload = objectMapper.writeValueAsString(controlDto);
+        mqttClientService.publish("lighting/control", jsonPayload);
         return ResponseEntity.ok("Команда управления освещением обработана");
     }
 
@@ -40,10 +46,11 @@ public class LightingController {
     }
 
     @PostMapping("/port")
-    public ResponseEntity<String> controlLightingPort(@RequestBody LightingControlDto controlDto) {
+    public ResponseEntity<String> controlLightingPort(@RequestBody LightingControlDto controlDto) throws JsonProcessingException {
         logger.info("Получена команда управления освещением через монитор порта: {}", controlDto);
         lightingService.updateUserSettings(controlDto);
-        mqttClientService.publish("lighting/control", controlDto.toString());
+        String jsonPayload = objectMapper.writeValueAsString(controlDto);
+        mqttClientService.publish("lighting/control", jsonPayload);
         return ResponseEntity.ok("Команда управления освещением через монитор порта обработана");
     }
 
