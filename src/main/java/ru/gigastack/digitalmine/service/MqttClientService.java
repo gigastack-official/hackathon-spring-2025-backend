@@ -29,7 +29,7 @@ public class MqttClientService implements MqttCallback {
     private static final Logger logger = LoggerFactory.getLogger(MqttClientService.class);
 
     private static final String BROKER_URL = "tcp://emqx.gigafs.v6.navy:1883";
-    private static final String MQTT_CLIENT_ID = "DigitalMineBackendClient";
+    private static final String MQTT_CLIENT_ID = "DigitalMineBackendClient_" + System.currentTimeMillis();
     private static final String USERNAME = "admin";
     private static final String PASSWORD = "admin76767676";
 
