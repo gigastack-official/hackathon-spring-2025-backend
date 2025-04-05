@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/rfid")
+@RequestMapping("/api/rfid12")
 @CrossOrigin(origins = "*")
 public class RFIDController {
 
