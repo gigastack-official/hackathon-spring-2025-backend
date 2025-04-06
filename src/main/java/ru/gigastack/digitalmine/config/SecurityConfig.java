@@ -43,7 +43,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         // Пример: эндпоинты для администраторов
-                        .requestMatchers("/api/admin/**", "/api/card-users/**").hasRole("ADMIN")
+                        //.requestMatchers("/api/admin/**", "/api/card-users/**").hasRole("ADMIN")
                         // Остальные эндпоинты доступны всем аутентифицированным пользователям
                         .anyRequest().authenticated()
                 );
