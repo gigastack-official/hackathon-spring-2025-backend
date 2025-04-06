@@ -13,6 +13,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import ru.gigastack.digitalmine.security.CustomAuthenticationEntryPoint;
 import ru.gigastack.digitalmine.security.JwtAuthenticationFilter;
 
 @Configuration
@@ -20,6 +21,9 @@ public class SecurityConfig {
 
     @Autowired
     private UserDetailsService customUserDetailsService;
+
+    @Autowired
+    private CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
 
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter() {
@@ -29,14 +33,18 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
+                // Отключаем CSRF для REST API
                 .csrf(csrf -> csrf.disable())
-                .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint((request, response, authException) ->
-                                response.sendError(HttpServletResponse.SC_UNAUTHORIZED))
-                )
+                // Настраиваем обработку ошибок аутентификации через наш обработчик
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(customAuthenticationEntryPoint))
+                // Применяем стратегию без сессий (REST API)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // Настраиваем разграничение доступа
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**","/api/rfid/**").permitAll()
+                        .requestMatchers("/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        // Пример: эндпоинты для администраторов
+                        .requestMatchers("/api/admin/**", "/api/card-users/**").hasRole("ADMIN")
+                        // Остальные эндпоинты доступны всем аутентифицированным пользователям
                         .anyRequest().authenticated()
                 );
         http.addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
