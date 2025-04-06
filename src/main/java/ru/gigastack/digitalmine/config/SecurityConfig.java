@@ -46,6 +46,7 @@ public class SecurityConfig {
                         //.requestMatchers("/api/admin/**", "/api/card-users/**").hasRole("ADMIN")
                         // Остальные эндпоинты доступны всем аутентифицированным пользователям
                         //.anyRequest().authenticated()
+                        .requestMatchers("/api/card-users/**").hasAuthority("ADMIN")
                 );
         http.addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
         return http.build();
