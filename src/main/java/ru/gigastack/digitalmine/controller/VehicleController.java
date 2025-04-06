@@ -82,8 +82,7 @@ public class VehicleController {
         String mqttPayload = objectMapper.writeValueAsString(payloadMap);
 
         mqttClientService.publish("vehicle/control", mqttPayload);
-
-
+        logger.info("MQTT-команда отправлена: {}", mqttPayload);
         return ResponseEntity.ok("Камера на электромобиле: отправлена команда " + mqttPayload);
     }
 }
