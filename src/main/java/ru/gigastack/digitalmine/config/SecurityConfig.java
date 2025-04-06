@@ -8,19 +8,24 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import ru.gigastack.digitalmine.model.User;
 import ru.gigastack.digitalmine.security.CustomAuthenticationEntryPoint;
 import ru.gigastack.digitalmine.security.JwtAuthenticationFilter;
+import ru.gigastack.digitalmine.service.UserService;
+
+import java.util.List;
 
 @Configuration
 public class SecurityConfig {
 
-    @Autowired
-    private UserDetailsService customUserDetailsService;
 
     @Autowired
     private CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
@@ -29,7 +34,15 @@ public class SecurityConfig {
     public JwtAuthenticationFilter jwtAuthenticationFilter() {
         return new JwtAuthenticationFilter();
     }
-
+    @Bean
+    public UserDetailsService customUserDetailsService(UserService userService) {
+        return username -> {
+            User user = userService.findByUsername(username)
+                    .orElseThrow(() -> new UsernameNotFoundException("User not found with username: " + username));
+            List<GrantedAuthority> authorities = AuthorityUtils.commaSeparatedStringToAuthorityList(user.getRoles());
+            return new org.springframework.security.core.userdetails.User(user.getUsername(), user.getPassword(), authorities);
+        };
+    }
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -46,7 +59,7 @@ public class SecurityConfig {
                         //.requestMatchers("/api/admin/**", "/api/card-users/**").hasRole("ADMIN")
                         // Остальные эндпоинты доступны всем аутентифицированным пользователям
                         //.anyRequest().authenticated()
-                        .requestMatchers("/api/card-users/**").hasAuthority("ADMIN")
+
                 );
         http.addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
         return http.build();
