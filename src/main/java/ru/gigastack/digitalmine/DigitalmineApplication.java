@@ -16,10 +16,8 @@ public class DigitalmineApplication {
 			}
 		};
 	}
+
 	public static void main(String[] args) {
-
 		SpringApplication.run(DigitalmineApplication.class, args);
-
 	}
-
 }

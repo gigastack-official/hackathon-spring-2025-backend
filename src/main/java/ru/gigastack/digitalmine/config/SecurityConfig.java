@@ -8,24 +8,17 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import ru.gigastack.digitalmine.model.User;
 import ru.gigastack.digitalmine.security.CustomAuthenticationEntryPoint;
 import ru.gigastack.digitalmine.security.JwtAuthenticationFilter;
 import ru.gigastack.digitalmine.service.UserService;
 
-import java.util.List;
-
 @Configuration
 public class SecurityConfig {
-
 
     @Autowired
     private CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
@@ -34,33 +27,28 @@ public class SecurityConfig {
     public JwtAuthenticationFilter jwtAuthenticationFilter() {
         return new JwtAuthenticationFilter();
     }
+
     @Bean
     public UserDetailsService customUserDetailsService(UserService userService) {
-        return username -> {
-            User user = userService.findByUsername(username)
-                    .orElseThrow(() -> new UsernameNotFoundException("User not found with username: " + username));
-            List<GrantedAuthority> authorities = AuthorityUtils.commaSeparatedStringToAuthorityList(user.getRoles());
-            return new org.springframework.security.core.userdetails.User(user.getUsername(), user.getPassword(), authorities);
-        };
+        return userService;
     }
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 // Отключаем CSRF для REST API
                 .csrf(csrf -> csrf.disable())
-                // Настраиваем обработку ошибок аутентификации через наш обработчик
+                // Обработка ошибок аутентификации через наш обработчик
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(customAuthenticationEntryPoint))
-                // Применяем стратегию без сессий (REST API)
+                // Используем стратегию без сессий
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                // Настраиваем разграничение доступа
+                // Настраиваем разграничение доступа:
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**","/api/card-users/**").permitAll()
-                        // Пример: эндпоинты для администраторов
-                        //.requestMatchers("/api/admin/**", "/api/card-users/**").hasRole("ADMIN")
-                        // Остальные эндпоинты доступны всем аутентифицированным пользователям
-                        //.anyRequest().authenticated()
-
+                        .requestMatchers("/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        .requestMatchers("/api/card-users/**").hasRole("ADMIN")
+                        .anyRequest().authenticated()
                 );
+
         http.addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

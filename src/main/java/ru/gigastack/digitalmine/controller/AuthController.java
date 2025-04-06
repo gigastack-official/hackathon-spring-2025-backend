@@ -26,6 +26,7 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest registerRequest) {
+        // При регистрации новый пользователь получает роль USER по умолчанию
         User user = userService.registerUser(registerRequest.getUsername(), registerRequest.getPassword(), "USER");
         return ResponseEntity.ok("Пользователь зарегистрирован: " + user.getUsername());
     }
